@@ -1,0 +1,7 @@
+{"luminances":
+[
+    {"shape":"rect","thetaX":0,"thetaY":0,"widthThetaX":10,"widthThetaY":2,
+     "luminance":0.15,"timeOn":0.0,"timeOff":1.0},
+    {"shape":"rect","thetaX":0,"thetaY":20,"widthThetaX":10,"widthThetaY":2,"rotation":90,
+     "luminance":0.15,"timeOn":0.0,"timeOff":1.0}
+]}

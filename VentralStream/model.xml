@@ -1,0 +1,802 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LL:SpineML xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://www.shef.ac.uk/SpineMLNetworkLayer" xmlns:LL="http://www.shef.ac.uk/SpineMLLowLevelNetworkLayer" xsi:schemaLocation="http://www.shef.ac.uk/SpineMLLowLevelNetworkLayer SpineMLLowLevelNetworkLayer.xsd http://www.shef.ac.uk/SpineMLNetworkLayer SpineMLNetworkLayer.xsd" name="Ventral Stream">
+    <LL:Population>
+        <LL:Annotation>
+            <SpineCreator>
+                <xPos value="-0.780396"/>
+                <yPos value="-1.51214"/>
+                <animSpeed value="0.2"/>
+                <aspectRatio value="1.66667"/>
+                <colour red="85" green="170" blue="0"/>
+                <size value="1"/>
+                <tag value="1"/>
+                <x3D value="0"/>
+                <y3D value="0"/>
+                <z3D value="0"/>
+                <is_visualised value="0"/>
+            </SpineCreator>
+        </LL:Annotation>
+        <LL:Neuron name="World" size="22500" url="WorldToBrain.xml">
+            <Property name="y" dimension="?">
+                <FixedValue value="0"/>
+            </Property>
+        </LL:Neuron>
+        <Layout url="grid.xml" seed="123" minimum_distance="0">
+            <Property name="numNeurons" dimension="?">
+                <FixedValue value="0"/>
+            </Property>
+            <Property name="rowlen" dimension="?">
+                <FixedValue value="150"/>
+            </Property>
+            <Property name="x" dimension="?">
+                <FixedValue value="0"/>
+            </Property>
+            <Property name="y" dimension="?">
+                <FixedValue value="0"/>
+            </Property>
+            <Property name="z" dimension="?">
+                <FixedValue value="0"/>
+            </Property>
+            <Property name="t" dimension="?">
+                <FixedValue value="0"/>
+            </Property>
+        </Layout>
+        <LL:Projection dst_population="V1_p_edges">
+            <LL:Annotation>
+                <SpineCreator>
+                    <DrawOptions style="4" showlabel="0"/>
+                    <start x="-0.899696" y="-1.01214"/>
+                    <curves>
+                        <curve>
+                            <C1 xpos="-0.975796" ypos="1.00376"/>
+                            <C2 xpos="-2.3237" ypos="-0.838643"/>
+                            <end xpos="-2.38359" ypos="1.08044"/>
+                        </curve>
+                    </curves>
+                </SpineCreator>
+            </LL:Annotation>
+            <LL:Synapse>
+                <ConnectionList>
+                    <LL:Annotation>
+                        <SpineCreator>
+                            <Script text="#PARNAME=sigma_g  #LOC=1,1&#10;#PARNAME=gain_g   #LOC=1,2&#10;#PARNAME=lambda_s #LOC=2,1&#10;#PARNAME=gain_s   #LOC=2,2&#10;#PARNAME=dir_s    #LOC=3,1&#10;#PARNAME=wco      #LOC=3,2&#10;#PARNAME=roi      #LOC=4,1&#10;#HASWEIGHT&#10;&#10;# This implements a Gabor connection; a 2-D Gaussian multiplied by a 1-D sine. Arguments:&#10;# sigma_g - sigma of the gaussian&#10;# gain_g - a gain for the gaussian&#10;# lambda_s - wavelength of sine&#10;# gain_s - gain of sine&#10;# dir_s - direction of (1-D) sine in degrees&#10;def connectionFunc(srclocs,dstlocs,sigma_g,gain_g,lambda_s,gain_s,dir_s,wco,roi):&#10;&#10;    import math&#10;&#10;    twopi = 6.283185307;&#10;&#10;    i = 0 # i is 'src iterator'&#10;    j = 0 # j is 'dst iterator'&#10;    out = [] # To return result&#10;&#10;    for srcloc in srclocs:&#10;        j = 0&#10;        for dstloc in dstlocs:&#10;&#10;            # Avoid many tanh, sin, cos, pow and exp computations for well-separated neurons:&#10;            xdist = srcloc[0] - dstloc[0]&#10;            ydist = srcloc[1] - dstloc[1]&#10;            # Ignore zdist&#10;            if abs(xdist) &gt; roi or abs(ydist) &gt; roi:&#10;                j = j + 1&#10;                continue&#10;&#10;            zdist = srcloc[2] - dstloc[2]&#10;            dist = math.sqrt(math.pow(xdist,2) + math.pow(ydist,2) + math.pow(zdist,2))&#10;&#10;            # Direction from source to dest&#10;            ##print ('dstloc[1]: ', dstloc[1], ' srcloc[1]:', srcloc[1])&#10;            ##print ('dstloc[0]: ', dstloc[0], ' srcloc[0]:', srcloc[0])&#10;            top = dstloc[1]-srcloc[1]&#10;            bot = dstloc[0]-srcloc[0]&#10;            ##print ('top:',top,'bot:',bot)&#10;            dir_d = math.atan2(top, bot);&#10;            ##print ('dir_d: ', dir_d, 'dir_s:', dir_s)&#10;&#10;            # Find the projection of the source-&gt;dest direction onto the sine wave direction. Call this distance dprime.&#10;            dprime = dist*math.cos(dir_d + twopi - ((dir_s*twopi)/360));&#10;            ##print ('dprime: ', dprime, ' dist: ', dist)&#10;&#10;            # Use dprime to figure out what the sine weight is.&#10;            sine_weight = gain_s*math.sin(dprime*twopi/lambda_s);&#10;            ##print ('sine_weight:', sine_weight)&#10;&#10;            gauss_weight = gain_g*math.exp(-0.5*math.pow(dist/sigma_g,2))&#10;            ##print ('gauss_weight:', gauss_weight)&#10;&#10;            combined_weight = sine_weight * gauss_weight;&#10;            ##print ('combined_weight:', combined_weight)&#10;&#10;            if abs(combined_weight) &gt; wco:&#10;                #sys.stdout.write('gauss&gt;0.0001: i={0} gauss={1}'.format( i, gauss))&#10;                conn = (i,j,0,combined_weight)&#10;                out.append(conn)&#10;&#10;            j = j + 1&#10;        i = i + 1&#10;    #sys.stdout.write('out length: %d' % len(out))&#10;    return out&#10;" name="Gabor" sigma_g="1" gain_g="1" lambda_s="8" gain_s="1" dir_s="0" wco="0.001" roi="8"/>
+                            <Config weightProperty="w"/>
+                        </SpineCreator>
+                    </LL:Annotation>
+                    <BinaryFile file_name="conn_World_to_V1_p_edges_syn0.bin" num_connections="835308" explicit_delay_flag="0" packed_data="true"/>
+                    <Delay dimension="ms">
+                        <FixedValue value="1"/>
+                    </Delay>
+                </ConnectionList>
+                <LL:WeightUpdate name="World to V1_p_edges Synapse 0 weight_update" url="Weight.xml" input_src_port="y" input_dst_port="in">
+                    <Property name="w" dimension="?">
+                        <ValueList>
+                            <BinaryFile file_name="explicitDataBinaryFile0.bin" num_elements="835308"/>
+                        </ValueList>
+                    </Property>
+                </LL:WeightUpdate>
+                <LL:PostSynapse name="World to V1_p_edges Synapse 0 postsynapse" url="passthrough.xml" input_src_port="out" input_dst_port="in" output_src_port="out" output_dst_port="in">
+                    <Property name="w" dimension="?">
+                        <FixedValue value="1"/>
+                    </Property>
+                </LL:PostSynapse>
+            </LL:Synapse>
+        </LL:Projection>
+        <LL:Projection dst_population="V1_r_edges">
+            <LL:Annotation>
+                <SpineCreator>
+                    <DrawOptions style="4" showlabel="0"/>
+                    <start x="-0.578796" y="-1.01214"/>
+                    <curves>
+                        <curve>
+                            <C1 xpos="-0.573696" ypos="0.957067"/>
+                            <C2 xpos="1.0793" ypos="-0.577014"/>
+                            <end xpos="0.983103" ypos="1.06237"/>
+                        </curve>
+                    </curves>
+                </SpineCreator>
+            </LL:Annotation>
+            <LL:Synapse>
+                <ConnectionList>
+                    <LL:Annotation>
+                        <SpineCreator>
+                            <Script text="#PARNAME=sigma_g  #LOC=1,1&#10;#PARNAME=gain_g   #LOC=1,2&#10;#PARNAME=lambda_s #LOC=2,1&#10;#PARNAME=gain_s   #LOC=2,2&#10;#PARNAME=dir_s    #LOC=3,1&#10;#PARNAME=wco      #LOC=3,2&#10;#PARNAME=roi      #LOC=4,1&#10;#HASWEIGHT&#10;&#10;# This implements a Gabor connection; a 2-D Gaussian multiplied by a 1-D sine. Arguments:&#10;# sigma_g - sigma of the gaussian&#10;# gain_g - a gain for the gaussian&#10;# lambda_s - wavelength of sine&#10;# gain_s - gain of sine&#10;# dir_s - direction of (1-D) sine in degrees&#10;def connectionFunc(srclocs,dstlocs,sigma_g,gain_g,lambda_s,gain_s,dir_s,wco,roi):&#10;&#10;    import math&#10;&#10;    twopi = 6.283185307;&#10;&#10;    i = 0 # i is 'src iterator'&#10;    j = 0 # j is 'dst iterator'&#10;    out = [] # To return result&#10;&#10;    for srcloc in srclocs:&#10;        j = 0&#10;        for dstloc in dstlocs:&#10;&#10;            # Avoid many tanh, sin, cos, pow and exp computations for well-separated neurons:&#10;            xdist = srcloc[0] - dstloc[0]&#10;            ydist = srcloc[1] - dstloc[1]&#10;            # Ignore zdist&#10;            if abs(xdist) &gt; roi or abs(ydist) &gt; roi:&#10;                j = j + 1&#10;                continue&#10;&#10;            zdist = srcloc[2] - dstloc[2]&#10;            dist = math.sqrt(math.pow(xdist,2) + math.pow(ydist,2) + math.pow(zdist,2))&#10;&#10;            # Direction from source to dest&#10;            ##print ('dstloc[1]: ', dstloc[1], ' srcloc[1]:', srcloc[1])&#10;            ##print ('dstloc[0]: ', dstloc[0], ' srcloc[0]:', srcloc[0])&#10;            top = dstloc[1]-srcloc[1]&#10;            bot = dstloc[0]-srcloc[0]&#10;            ##print ('top:',top,'bot:',bot)&#10;            dir_d = math.atan2(top, bot);&#10;            ##print ('dir_d: ', dir_d, 'dir_s:', dir_s)&#10;&#10;            # Find the projection of the source-&gt;dest direction onto the sine wave direction. Call this distance dprime.&#10;            dprime = dist*math.cos(dir_d + twopi - ((dir_s*twopi)/360));&#10;            ##print ('dprime: ', dprime, ' dist: ', dist)&#10;&#10;            # Use dprime to figure out what the sine weight is.&#10;            sine_weight = gain_s*math.sin(dprime*twopi/lambda_s);&#10;            ##print ('sine_weight:', sine_weight)&#10;&#10;            gauss_weight = gain_g*math.exp(-0.5*math.pow(dist/sigma_g,2))&#10;            ##print ('gauss_weight:', gauss_weight)&#10;&#10;            combined_weight = sine_weight * gauss_weight;&#10;            ##print ('combined_weight:', combined_weight)&#10;&#10;            if abs(combined_weight) &gt; wco:&#10;                #sys.stdout.write('gauss&gt;0.0001: i={0} gauss={1}'.format( i, gauss))&#10;                conn = (i,j,0,combined_weight)&#10;                out.append(conn)&#10;&#10;            j = j + 1&#10;        i = i + 1&#10;    #sys.stdout.write('out length: %d' % len(out))&#10;    return out&#10;" name="Gabor" sigma_g="1" gain_g="1" lambda_s="8" gain_s="1" dir_s="90" wco="0.001" roi="8"/>
+                            <Config weightProperty="w"/>
+                        </SpineCreator>
+                    </LL:Annotation>
+                    <BinaryFile file_name="conn_World_to_V1_r_edges_syn0.bin" num_connections="835308" explicit_delay_flag="0" packed_data="true"/>
+                    <Delay dimension="ms">
+                        <FixedValue value="1"/>
+                    </Delay>
+                </ConnectionList>
+                <LL:WeightUpdate name="World to V1_r_edges Synapse 0 weight_update" url="Weight.xml" input_src_port="y" input_dst_port="in">
+                    <Property name="w" dimension="?">
+                        <ValueList>
+                            <BinaryFile file_name="explicitDataBinaryFile3.bin" num_elements="835308"/>
+                        </ValueList>
+                    </Property>
+                </LL:WeightUpdate>
+                <LL:PostSynapse name="World to V1_r_edges Synapse 0 postsynapse" url="passthrough.xml" input_src_port="out" input_dst_port="in" output_src_port="out" output_dst_port="in">
+                    <Property name="w" dimension="?">
+                        <FixedValue value="1"/>
+                    </Property>
+                </LL:PostSynapse>
+            </LL:Synapse>
+        </LL:Projection>
+    </LL:Population>
+    <LL:Population>
+        <LL:Annotation>
+            <SpineCreator>
+                <xPos value="-2.3599"/>
+                <yPos value="1.58044"/>
+                <animSpeed value="0.2"/>
+                <aspectRatio value="1.66667"/>
+                <colour red="255" green="0" blue="0"/>
+                <size value="1"/>
+                <tag value="2"/>
+                <x3D value="0"/>
+                <y3D value="0"/>
+                <z3D value="11"/>
+                <is_visualised value="0"/>
+            </SpineCreator>
+        </LL:Annotation>
+        <LL:Neuron name="V1_p_edges" size="22500" url="LINtanh.xml">
+            <Property name="tau" dimension="?">
+                <FixedValue value="10"/>
+            </Property>
+            <Property name="noise" dimension="?">
+                <FixedValue value="0.01"/>
+            </Property>
+            <Property name="a" dimension="?">
+                <FixedValue value="0"/>
+            </Property>
+            <Property name="y" dimension="?">
+                <FixedValue value="0"/>
+            </Property>
+        </LL:Neuron>
+        <Layout url="grid.xml" seed="123" minimum_distance="0">
+            <Property name="numNeurons" dimension="?">
+                <FixedValue value="0"/>
+            </Property>
+            <Property name="rowlen" dimension="?">
+                <FixedValue value="150"/>
+            </Property>
+            <Property name="x" dimension="?">
+                <FixedValue value="0"/>
+            </Property>
+            <Property name="y" dimension="?">
+                <FixedValue value="0"/>
+            </Property>
+            <Property name="z" dimension="?">
+                <FixedValue value="0"/>
+            </Property>
+            <Property name="t" dimension="?">
+                <FixedValue value="0"/>
+            </Property>
+        </Layout>
+        <LL:Projection dst_population="V2_p_lines">
+            <LL:Annotation>
+                <SpineCreator>
+                    <DrawOptions style="4" showlabel="0"/>
+                    <start x="-2.60073" y="2.08044"/>
+                    <curves>
+                        <curve>
+                            <C1 xpos="-2.58567" ypos="4.21171"/>
+                            <C2 xpos="-4.3342" ypos="2.79486"/>
+                            <end xpos="-4.32104" ypos="5.09377"/>
+                        </curve>
+                    </curves>
+                </SpineCreator>
+            </LL:Annotation>
+            <LL:Synapse>
+                <ConnectionList>
+                    <LL:Annotation>
+                        <SpineCreator>
+                            <Script text="#PARNAME=sigma_m        #LOC=1,1&#10;#PARNAME=E2             #LOC=1,2&#10;#PARNAME=sigma_0        #LOC=2,1&#10;#PARNAME=fovshift       #LOC=2,2&#10;#PARNAME=nfs            #LOC=3,1&#10;#PARNAME=W_cut          #LOC=3,2&#10;#PARNAME=offsetd0       #LOC=4,1&#10;#PARNAME=offsetd1       #LOC=4,2&#10;#HASWEIGHT&#10;&#10;# Compute a widening Gaussian connection function for a retinotopic&#10;# space, to maintain a constant Gaussian width in Cartesian&#10;# space. This is much like the WideningGaussian connection function,&#10;# but with a configurable neural field size width (W_nfs).&#10;#&#10;# This version incorporates an offset for dstloc[0] and dstloc[1] to&#10;# shift the Gaussian projection by a desired amount AND it does so to dual Gaussians, offset by +/=offsetd0 and +/-offsetd1&#10;&#10;def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd0,offsetd1):&#10;&#10;  import math&#10;&#10;  M_f_start=nfs/(E2*math.log((fovshift/(2*E2))+1))&#10;&#10;  i_src = 0&#10;  out = []&#10;  for srcloc in srclocs:&#10;    i_dst = 0&#10;    # Compute the location of srcloc, this defines what sigma will be. As r (as opp. to phi) increases, the sigma should increase.&#10;    M_f =  nfs/(E2*math.log(((1+srcloc[1])/(2*E2))+1))&#10;&#10;    # Set some of M_f to 1 to ensure the fan-out starts at around the edge of the foveal region.&#10;    if (1+srcloc[1]) &lt; fovshift:&#10;      M_f = M_f_start&#10;&#10;    _sigma = (sigma_m/M_f) - (sigma_m/M_f_start) + sigma_0 # as function of r, aka srcloc[1]. M_f is the function of r.&#10;&#10;    for dstloc in dstlocs:&#10;&#10;      # in-xy-plane distance (ignore srcloc[2]/dstdoc[2])&#10;      dist1 = math.sqrt(math.pow((srcloc[0] - dstloc[0] + offsetd0),2) + math.pow((srcloc[1] - dstloc[1] + offsetd1),2))&#10;      dist2 = math.sqrt(math.pow((srcloc[0] - dstloc[0] - offsetd0),2) + math.pow((srcloc[1] - dstloc[1] - offsetd1),2))&#10;&#10;      gauss1 = math.exp(-0.5*math.pow(dist1/_sigma,2))&#10;      gauss2 = math.exp(-0.5*math.pow(dist2/_sigma,2))&#10;&#10;      if gauss1 &gt; W_cut:&#10;        conn = (i_src,i_dst,0,gauss1)&#10;        out.append(conn)&#10;      elif gauss2 &gt; W_cut:&#10;        conn = (i_src,i_dst,0,gauss2)&#10;        out.append(conn)&#10;&#10;      i_dst = i_dst + 1&#10;    i_src = i_src + 1&#10;  return out" name="OffsetDualRetGauss" sigma_m="30" E2="2.5" sigma_0="0.3" fovshift="1" nfs="150" W_cut="0.001" offsetd0="4" offsetd1="0"/>
+                            <Config weightProperty="w"/>
+                        </SpineCreator>
+                    </LL:Annotation>
+                    <BinaryFile file_name="conn_V1_p_edges_to_V2_p_lines_syn0.bin" num_connections="3878176" explicit_delay_flag="0" packed_data="true"/>
+                    <Delay dimension="ms">
+                        <FixedValue value="1"/>
+                    </Delay>
+                </ConnectionList>
+                <LL:WeightUpdate name="V1_p_edges to V2_p_lines Synapse 0 weight_update" url="Weight.xml" input_src_port="y" input_dst_port="in">
+                    <Property name="w" dimension="?">
+                        <ValueList>
+                            <BinaryFile file_name="explicitDataBinaryFile2.bin" num_elements="3878176"/>
+                        </ValueList>
+                    </Property>
+                </LL:WeightUpdate>
+                <LL:PostSynapse name="V1_p_edges to V2_p_lines Synapse 0 postsynapse" url="passthrough.xml" input_src_port="out" input_dst_port="in" output_src_port="out" output_dst_port="in">
+                    <Property name="w" dimension="?">
+                        <FixedValue value="1"/>
+                    </Property>
+                </LL:PostSynapse>
+            </LL:Synapse>
+        </LL:Projection>
+        <LL:Projection dst_population="V2_sw">
+            <LL:Annotation>
+                <SpineCreator>
+                    <DrawOptions style="4" showlabel="0"/>
+                    <start x="-2.1018" y="2.08044"/>
+                    <curves>
+                        <curve>
+                            <C1 xpos="-2.05955" ypos="4.18883"/>
+                            <C2 xpos="-2.51705" ypos="3.06797"/>
+                            <end xpos="-2.51417" ypos="5.14418"/>
+                        </curve>
+                    </curves>
+                </SpineCreator>
+            </LL:Annotation>
+            <LL:Synapse>
+                <ConnectionList>
+                    <LL:Annotation>
+                        <SpineCreator>
+                            <Script text="#PARNAME=sigma_m        #LOC=1,1&#10;#PARNAME=E2             #LOC=1,2&#10;#PARNAME=sigma_0        #LOC=2,1&#10;#PARNAME=fovshift       #LOC=2,2&#10;#PARNAME=nfs            #LOC=3,1&#10;#PARNAME=W_cut          #LOC=3,2&#10;#PARNAME=offsetd0       #LOC=4,1&#10;#PARNAME=offsetd1       #LOC=4,2&#10;#HASWEIGHT&#10;&#10;# Compute a widening Gaussian connection function for a retinotopic&#10;# space, to maintain a constant Gaussian width in Cartesian&#10;# space. This is much like the WideningGaussian connection function,&#10;# but with a configurable neural field size width (W_nfs).&#10;#&#10;# This version incorporates an offset for dstloc[0] and dstloc[1] to&#10;# shift the Gaussian projection by a desired amount.&#10;&#10;def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd0,offsetd1):&#10;&#10;  import math&#10;&#10;  M_f_start=nfs/(E2*math.log((fovshift/(2*E2))+1))&#10;&#10;  i_src = 0&#10;  out = []&#10;  for srcloc in srclocs:&#10;    i_dst = 0&#10;    # Compute the location of srcloc, this defines what sigma will be. As r (as opp. to phi) increases, the sigma should increase.&#10;    M_f =  nfs/(E2*math.log(((1+srcloc[1])/(2*E2))+1))&#10;&#10;    # Set some of M_f to 1 to ensure the fan-out starts at around the edge of the foveal region.&#10;    if (1+srcloc[1]) &lt; fovshift:&#10;      M_f = M_f_start&#10;&#10;    _sigma = (sigma_m/M_f) - (sigma_m/M_f_start) + sigma_0 # as function of r, aka srcloc[1]. M_f is the function of r.&#10;    three_sigma = 3 * _sigma&#10;&#10;    for dstloc in dstlocs:&#10;&#10;      # in-xy-plane distance (ignore srcloc[2]/dstdoc[2])&#10;      xd = (srcloc[0] - dstloc[0] + offsetd0)&#10;      yd = (srcloc[1] - dstloc[1] + offsetd1)&#10;      if abs(xd) &lt; three_sigma and abs(yd) &lt; three_sigma:&#10;        dist = math.sqrt(math.pow(xd,2) + math.pow(yd,2))&#10;&#10;        gauss = math.exp(-0.5*math.pow(dist/_sigma,2))&#10;&#10;        if gauss &gt; W_cut:&#10;          conn = (i_src,i_dst,0,gauss)&#10;          out.append(conn)&#10;&#10;      i_dst = i_dst + 1&#10;    i_src = i_src + 1&#10;  return out" name="OffsetRetGauss" sigma_m="15" E2="2.5" sigma_0="0.3" fovshift="1" nfs="150" W_cut="0.001" offsetd0="4" offsetd1="0"/>
+                            <Config weightProperty="w"/>
+                        </SpineCreator>
+                    </LL:Annotation>
+                    <BinaryFile file_name="conn_V1_p_edges_to_V2_sw_syn0.bin" num_connections="650868" explicit_delay_flag="0" packed_data="true"/>
+                    <Delay dimension="ms">
+                        <FixedValue value="0"/>
+                    </Delay>
+                </ConnectionList>
+                <LL:WeightUpdate name="V1_p_edges to V2_sw Synapse 0 weight_update" url="Weight.xml" input_src_port="y" input_dst_port="in">
+                    <Property name="w" dimension="?">
+                        <ValueList>
+                            <BinaryFile file_name="explicitDataBinaryFile5.bin" num_elements="650868"/>
+                        </ValueList>
+                    </Property>
+                </LL:WeightUpdate>
+                <LL:PostSynapse name="V1_p_edges to V2_sw Synapse 0 postsynapse" url="passthrough.xml" input_src_port="out" input_dst_port="in" output_src_port="out" output_dst_port="in">
+                    <Property name="w" dimension="?">
+                        <FixedValue value="1"/>
+                    </Property>
+                </LL:PostSynapse>
+            </LL:Synapse>
+        </LL:Projection>
+        <LL:Projection dst_population="V1_r_edges">
+            <LL:Annotation>
+                <SpineCreator>
+                    <DrawOptions style="0" showlabel="0"/>
+                    <start x="-1.52656" y="1.85941"/>
+                    <curves>
+                        <curve>
+                            <C1 xpos="-0.620933" ypos="2.16257"/>
+                            <C2 xpos="-0.469916" ypos="1.97673"/>
+                            <end xpos="0.100069" ypos="1.80843"/>
+                        </curve>
+                    </curves>
+                </SpineCreator>
+            </LL:Annotation>
+            <LL:Synapse>
+                <OneToOneConnection>
+                    <Delay dimension="ms">
+                        <FixedValue value="1"/>
+                    </Delay>
+                </OneToOneConnection>
+                <LL:WeightUpdate name="V1_p_edges to V1_r_edges Synapse 0 weight_update" url="Weight.xml" input_src_port="y" input_dst_port="in">
+                    <Property name="w" dimension="?">
+                        <FixedValue value="-0.6"/>
+                    </Property>
+                </LL:WeightUpdate>
+                <LL:PostSynapse name="V1_p_edges to V1_r_edges Synapse 0 postsynapse" url="passthrough.xml" input_src_port="out" input_dst_port="in" output_src_port="out" output_dst_port="in">
+                    <Property name="w" dimension="?">
+                        <FixedValue value="1"/>
+                    </Property>
+                </LL:PostSynapse>
+            </LL:Synapse>
+        </LL:Projection>
+    </LL:Population>
+    <LL:Population>
+        <LL:Annotation>
+            <SpineCreator>
+                <xPos value="0.933404"/>
+                <yPos value="1.56237"/>
+                <animSpeed value="0.2"/>
+                <aspectRatio value="1.66667"/>
+                <colour red="255" green="0" blue="0"/>
+                <size value="1"/>
+                <tag value="2"/>
+                <x3D value="0"/>
+                <y3D value="0"/>
+                <z3D value="0"/>
+                <is_visualised value="1"/>
+            </SpineCreator>
+        </LL:Annotation>
+        <LL:Neuron name="V1_r_edges" size="22500" url="LINtanh.xml">
+            <Property name="tau" dimension="?">
+                <FixedValue value="10"/>
+            </Property>
+            <Property name="noise" dimension="?">
+                <FixedValue value="0.01"/>
+            </Property>
+            <Property name="a" dimension="?">
+                <FixedValue value="0"/>
+            </Property>
+            <Property name="y" dimension="?">
+                <FixedValue value="0"/>
+            </Property>
+        </LL:Neuron>
+        <Layout url="grid.xml" seed="123" minimum_distance="0">
+            <Property name="numNeurons" dimension="?">
+                <FixedValue value="0"/>
+            </Property>
+            <Property name="rowlen" dimension="?">
+                <FixedValue value="150"/>
+            </Property>
+            <Property name="x" dimension="?">
+                <FixedValue value="0"/>
+            </Property>
+            <Property name="y" dimension="?">
+                <FixedValue value="0"/>
+            </Property>
+            <Property name="z" dimension="?">
+                <FixedValue value="0"/>
+            </Property>
+            <Property name="t" dimension="?">
+                <FixedValue value="0"/>
+            </Property>
+        </Layout>
+        <LL:Projection dst_population="V2_r_lines">
+            <LL:Annotation>
+                <SpineCreator>
+                    <DrawOptions style="4" showlabel="0"/>
+                    <start x="1.151" y="2.06237"/>
+                    <curves>
+                        <curve>
+                            <C1 xpos="1.151" ypos="3.93652"/>
+                            <C2 xpos="2.7355" ypos="2.86119"/>
+                            <end xpos="2.7241" ypos="5.07257"/>
+                        </curve>
+                    </curves>
+                </SpineCreator>
+            </LL:Annotation>
+            <LL:Synapse>
+                <ConnectionList>
+                    <LL:Annotation>
+                        <SpineCreator>
+                            <Script text="#PARNAME=sigma_m        #LOC=1,1&#10;#PARNAME=E2             #LOC=1,2&#10;#PARNAME=sigma_0        #LOC=2,1&#10;#PARNAME=fovshift       #LOC=2,2&#10;#PARNAME=nfs            #LOC=3,1&#10;#PARNAME=W_cut          #LOC=3,2&#10;#PARNAME=offsetd0       #LOC=4,1&#10;#PARNAME=offsetd1       #LOC=4,2&#10;#HASWEIGHT&#10;&#10;# Compute a widening Gaussian connection function for a retinotopic&#10;# space, to maintain a constant Gaussian width in Cartesian&#10;# space. This is much like the WideningGaussian connection function,&#10;# but with a configurable neural field size width (W_nfs).&#10;#&#10;# This version incorporates an offset for dstloc[0] and dstloc[1] to&#10;# shift the Gaussian projection by a desired amount AND it does so to dual Gaussians, offset by +/=offsetd0 and +/-offsetd1&#10;&#10;def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd0,offsetd1):&#10;&#10;  import math&#10;&#10;  M_f_start=nfs/(E2*math.log((fovshift/(2*E2))+1))&#10;&#10;  i_src = 0&#10;  out = []&#10;  for srcloc in srclocs:&#10;    i_dst = 0&#10;    # Compute the location of srcloc, this defines what sigma will be. As r (as opp. to phi) increases, the sigma should increase.&#10;    M_f =  nfs/(E2*math.log(((1+srcloc[1])/(2*E2))+1))&#10;&#10;    # Set some of M_f to 1 to ensure the fan-out starts at around the edge of the foveal region.&#10;    if (1+srcloc[1]) &lt; fovshift:&#10;      M_f = M_f_start&#10;&#10;    _sigma = (sigma_m/M_f) - (sigma_m/M_f_start) + sigma_0 # as function of r, aka srcloc[1]. M_f is the function of r.&#10;&#10;    for dstloc in dstlocs:&#10;&#10;      # in-xy-plane distance (ignore srcloc[2]/dstdoc[2])&#10;      dist1 = math.sqrt(math.pow((srcloc[0] - dstloc[0] + offsetd0),2) + math.pow((srcloc[1] - dstloc[1] + offsetd1),2))&#10;      dist2 = math.sqrt(math.pow((srcloc[0] - dstloc[0] - offsetd0),2) + math.pow((srcloc[1] - dstloc[1] - offsetd1),2))&#10;&#10;      gauss1 = math.exp(-0.5*math.pow(dist1/_sigma,2))&#10;      gauss2 = math.exp(-0.5*math.pow(dist2/_sigma,2))&#10;&#10;      if gauss1 &gt; W_cut:&#10;        conn = (i_src,i_dst,0,gauss1)&#10;        out.append(conn)&#10;      elif gauss2 &gt; W_cut:&#10;        conn = (i_src,i_dst,0,gauss2)&#10;        out.append(conn)&#10;&#10;      i_dst = i_dst + 1&#10;    i_src = i_src + 1&#10;  return out" name="OffsetDualRetGauss" sigma_m="30" E2="2.5" sigma_0="0.3" fovshift="1" nfs="150" W_cut="0.001" offsetd0="0" offsetd1="4"/>
+                            <Config weightProperty="w"/>
+                        </SpineCreator>
+                    </LL:Annotation>
+                    <BinaryFile file_name="conn_V1_r_edges_to_V2_r_lines_syn0.bin" num_connections="3890892" explicit_delay_flag="0" packed_data="true"/>
+                    <Delay dimension="ms">
+                        <FixedValue value="1"/>
+                    </Delay>
+                </ConnectionList>
+                <LL:WeightUpdate name="V1_r_edges to V2_r_lines Synapse 0 weight_update" url="Weight.xml" input_src_port="y" input_dst_port="in">
+                    <Property name="w" dimension="?">
+                        <ValueList>
+                            <BinaryFile file_name="explicitDataBinaryFile8.bin" num_elements="3890892"/>
+                        </ValueList>
+                    </Property>
+                </LL:WeightUpdate>
+                <LL:PostSynapse name="V1_r_edges to V2_r_lines Synapse 0 postsynapse" url="passthrough.xml" input_src_port="out" input_dst_port="in" output_src_port="out" output_dst_port="in">
+                    <Property name="w" dimension="?">
+                        <FixedValue value="1"/>
+                    </Property>
+                </LL:PostSynapse>
+            </LL:Synapse>
+        </LL:Projection>
+        <LL:Projection dst_population="V2_sw">
+            <LL:Annotation>
+                <SpineCreator>
+                    <DrawOptions style="4" showlabel="0"/>
+                    <start x="0.548103" y="2.06237"/>
+                    <curves>
+                        <curve>
+                            <C1 xpos="0.548103" ypos="4.00787"/>
+                            <C2 xpos="-1.87656" ypos="2.7706"/>
+                            <end xpos="-1.86779" ypos="5.14422"/>
+                        </curve>
+                    </curves>
+                </SpineCreator>
+            </LL:Annotation>
+            <LL:Synapse>
+                <ConnectionList>
+                    <LL:Annotation>
+                        <SpineCreator>
+                            <Script text="#PARNAME=sigma_m        #LOC=1,1&#10;#PARNAME=E2             #LOC=1,2&#10;#PARNAME=sigma_0        #LOC=2,1&#10;#PARNAME=fovshift       #LOC=2,2&#10;#PARNAME=nfs            #LOC=3,1&#10;#PARNAME=W_cut          #LOC=3,2&#10;#PARNAME=offsetd0       #LOC=4,1&#10;#PARNAME=offsetd1       #LOC=4,2&#10;#HASWEIGHT&#10;&#10;# Compute a widening Gaussian connection function for a retinotopic&#10;# space, to maintain a constant Gaussian width in Cartesian&#10;# space. This is much like the WideningGaussian connection function,&#10;# but with a configurable neural field size width (W_nfs).&#10;#&#10;# This version incorporates an offset for dstloc[0] and dstloc[1] to&#10;# shift the Gaussian projection by a desired amount.&#10;&#10;def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd0,offsetd1):&#10;&#10;  import math&#10;&#10;  M_f_start=nfs/(E2*math.log((fovshift/(2*E2))+1))&#10;&#10;  i_src = 0&#10;  out = []&#10;  for srcloc in srclocs:&#10;    i_dst = 0&#10;    # Compute the location of srcloc, this defines what sigma will be. As r (as opp. to phi) increases, the sigma should increase.&#10;    M_f =  nfs/(E2*math.log(((1+srcloc[1])/(2*E2))+1))&#10;&#10;    # Set some of M_f to 1 to ensure the fan-out starts at around the edge of the foveal region.&#10;    if (1+srcloc[1]) &lt; fovshift:&#10;      M_f = M_f_start&#10;&#10;    _sigma = (sigma_m/M_f) - (sigma_m/M_f_start) + sigma_0 # as function of r, aka srcloc[1]. M_f is the function of r.&#10;    three_sigma = 3 * _sigma&#10;&#10;    for dstloc in dstlocs:&#10;&#10;      # in-xy-plane distance (ignore srcloc[2]/dstdoc[2])&#10;      xd = (srcloc[0] - dstloc[0] + offsetd0)&#10;      yd = (srcloc[1] - dstloc[1] + offsetd1)&#10;      if abs(xd) &lt; three_sigma and abs(yd) &lt; three_sigma:&#10;        dist = math.sqrt(math.pow(xd,2) + math.pow(yd,2))&#10;&#10;        gauss = math.exp(-0.5*math.pow(dist/_sigma,2))&#10;&#10;        if gauss &gt; W_cut:&#10;          conn = (i_src,i_dst,0,gauss)&#10;          out.append(conn)&#10;&#10;      i_dst = i_dst + 1&#10;    i_src = i_src + 1&#10;  return out" name="OffsetRetGauss" sigma_m="15" E2="2.5" sigma_0="0.3" fovshift="1" nfs="150" W_cut="0.001" offsetd0="4" offsetd1="8"/>
+                            <Config weightProperty="w"/>
+                        </SpineCreator>
+                    </LL:Annotation>
+                    <BinaryFile file_name="conn_V1_r_edges_to_V2_sw_syn0.bin" num_connections="603564" explicit_delay_flag="0" packed_data="true"/>
+                    <Delay dimension="ms">
+                        <FixedValue value="0"/>
+                    </Delay>
+                </ConnectionList>
+                <LL:WeightUpdate name="V1_r_edges to V2_sw Synapse 0 weight_update" url="Weight.xml" input_src_port="y" input_dst_port="in">
+                    <Property name="w" dimension="?">
+                        <ValueList>
+                            <BinaryFile file_name="explicitDataBinaryFile9.bin" num_elements="603564"/>
+                        </ValueList>
+                    </Property>
+                </LL:WeightUpdate>
+                <LL:PostSynapse name="V1_r_edges to V2_sw Synapse 0 postsynapse" url="passthrough.xml" input_src_port="out" input_dst_port="in" output_src_port="out" output_dst_port="in">
+                    <Property name="w" dimension="?">
+                        <FixedValue value="1"/>
+                    </Property>
+                </LL:PostSynapse>
+            </LL:Synapse>
+        </LL:Projection>
+        <LL:Projection dst_population="V1_p_edges">
+            <LL:Annotation>
+                <SpineCreator>
+                    <DrawOptions style="0" showlabel="0"/>
+                    <start x="0.100069" y="1.46067"/>
+                    <curves>
+                        <curve>
+                            <C1 xpos="-0.598272" ypos="1.31002"/>
+                            <C2 xpos="-0.788304" ypos="1.30539"/>
+                            <end xpos="-1.52656" ypos="1.53987"/>
+                        </curve>
+                    </curves>
+                </SpineCreator>
+            </LL:Annotation>
+            <LL:Synapse>
+                <OneToOneConnection>
+                    <Delay dimension="ms">
+                        <FixedValue value="1"/>
+                    </Delay>
+                </OneToOneConnection>
+                <LL:WeightUpdate name="V1_r_edges to V1_p_edges Synapse 0 weight_update" url="Weight.xml" input_src_port="y" input_dst_port="in">
+                    <Property name="w" dimension="?">
+                        <FixedValue value="-0.6"/>
+                    </Property>
+                </LL:WeightUpdate>
+                <LL:PostSynapse name="V1_r_edges to V1_p_edges Synapse 0 postsynapse" url="passthrough.xml" input_src_port="out" input_dst_port="in" output_src_port="out" output_dst_port="in">
+                    <Property name="w" dimension="?">
+                        <FixedValue value="1"/>
+                    </Property>
+                </LL:PostSynapse>
+            </LL:Synapse>
+        </LL:Projection>
+    </LL:Population>
+    <LL:Population>
+        <LL:Annotation>
+            <SpineCreator>
+                <xPos value="-4.66474"/>
+                <yPos value="5.59296"/>
+                <animSpeed value="0.2"/>
+                <aspectRatio value="1.66667"/>
+                <colour red="0" green="170" blue="255"/>
+                <size value="1"/>
+                <tag value="3"/>
+                <x3D value="0"/>
+                <y3D value="0"/>
+                <z3D value="0"/>
+                <is_visualised value="0"/>
+            </SpineCreator>
+        </LL:Annotation>
+        <LL:Neuron name="V2_p_lines" size="22500" url="LINtanh.xml">
+            <Property name="tau" dimension="?">
+                <FixedValue value="10"/>
+            </Property>
+            <Property name="noise" dimension="?">
+                <FixedValue value="0.01"/>
+            </Property>
+            <Property name="a" dimension="?">
+                <FixedValue value="0"/>
+            </Property>
+            <Property name="y" dimension="?">
+                <FixedValue value="0"/>
+            </Property>
+        </LL:Neuron>
+        <Layout url="grid.xml" seed="123" minimum_distance="0">
+            <Property name="numNeurons" dimension="?">
+                <FixedValue value="0"/>
+            </Property>
+            <Property name="rowlen" dimension="?">
+                <FixedValue value="150"/>
+            </Property>
+            <Property name="x" dimension="?">
+                <FixedValue value="0"/>
+            </Property>
+            <Property name="y" dimension="?">
+                <FixedValue value="0"/>
+            </Property>
+            <Property name="z" dimension="?">
+                <FixedValue value="0"/>
+            </Property>
+            <Property name="t" dimension="?">
+                <FixedValue value="0"/>
+            </Property>
+        </Layout>
+        <LL:Projection dst_population="V2_sw">
+            <LL:Annotation>
+                <SpineCreator>
+                    <DrawOptions style="0" showlabel="0"/>
+                    <start x="-3.83141" y="5.69151"/>
+                    <curves>
+                        <curve>
+                            <C1 xpos="-3.49373" ypos="5.82785"/>
+                            <C2 xpos="-3.33631" ypos="5.81372"/>
+                            <end xpos="-3.09303" ypos="5.70678"/>
+                        </curve>
+                    </curves>
+                </SpineCreator>
+            </LL:Annotation>
+            <LL:Synapse>
+                <OneToOneConnection>
+                    <Delay dimension="ms">
+                        <FixedValue value="1"/>
+                    </Delay>
+                </OneToOneConnection>
+                <LL:WeightUpdate name="V2_p_lines to V2_sw Synapse 0 weight_update" url="Weight.xml" input_src_port="y" input_dst_port="in">
+                    <Property name="w" dimension="?">
+                        <FixedValue value="-0.6"/>
+                    </Property>
+                </LL:WeightUpdate>
+                <LL:PostSynapse name="V2_p_lines to V2_sw Synapse 0 postsynapse" url="passthrough.xml" input_src_port="out" input_dst_port="in" output_src_port="out" output_dst_port="in">
+                    <Property name="w" dimension="?">
+                        <FixedValue value="1"/>
+                    </Property>
+                </LL:PostSynapse>
+            </LL:Synapse>
+        </LL:Projection>
+        <LL:Projection dst_population="V2_r_lines">
+            <LL:Annotation>
+                <SpineCreator>
+                    <DrawOptions style="0" showlabel="0"/>
+                    <start x="-4.20355" y="6.09296"/>
+                    <curves>
+                        <curve>
+                            <C1 xpos="-2.47889" ypos="7.57477"/>
+                            <C2 xpos="0.0281104" ypos="7.4939"/>
+                            <end xpos="2.30998" ypos="6.07283"/>
+                        </curve>
+                    </curves>
+                </SpineCreator>
+            </LL:Annotation>
+            <LL:Synapse>
+                <OneToOneConnection>
+                    <Delay dimension="ms">
+                        <FixedValue value="1"/>
+                    </Delay>
+                </OneToOneConnection>
+                <LL:WeightUpdate name="V2_p_lines to V2_r_lines Synapse 0 weight_update" url="Weight.xml" input_src_port="y" input_dst_port="in">
+                    <Property name="w" dimension="?">
+                        <FixedValue value="-0.6"/>
+                    </Property>
+                </LL:WeightUpdate>
+                <LL:PostSynapse name="V2_p_lines to V2_r_lines Synapse 0 postsynapse" url="passthrough.xml" input_src_port="out" input_dst_port="in" output_src_port="out" output_dst_port="in">
+                    <Property name="w" dimension="?">
+                        <FixedValue value="1"/>
+                    </Property>
+                </LL:PostSynapse>
+            </LL:Synapse>
+        </LL:Projection>
+    </LL:Population>
+    <LL:Population>
+        <LL:Annotation>
+            <SpineCreator>
+                <xPos value="2.9847"/>
+                <yPos value="5.57283"/>
+                <animSpeed value="0.2"/>
+                <aspectRatio value="1.66667"/>
+                <colour red="0" green="170" blue="255"/>
+                <size value="1"/>
+                <tag value="4"/>
+                <x3D value="0"/>
+                <y3D value="0"/>
+                <z3D value="0"/>
+                <is_visualised value="0"/>
+            </SpineCreator>
+        </LL:Annotation>
+        <LL:Neuron name="V2_r_lines" size="22500" url="LINtanh.xml">
+            <Property name="tau" dimension="?">
+                <FixedValue value="10"/>
+            </Property>
+            <Property name="noise" dimension="?">
+                <FixedValue value="0.01"/>
+            </Property>
+            <Property name="a" dimension="?">
+                <FixedValue value="0"/>
+            </Property>
+            <Property name="y" dimension="?">
+                <FixedValue value="0"/>
+            </Property>
+        </LL:Neuron>
+        <Layout url="grid.xml" seed="123" minimum_distance="0">
+            <Property name="numNeurons" dimension="?">
+                <FixedValue value="0"/>
+            </Property>
+            <Property name="rowlen" dimension="?">
+                <FixedValue value="150"/>
+            </Property>
+            <Property name="x" dimension="?">
+                <FixedValue value="0"/>
+            </Property>
+            <Property name="y" dimension="?">
+                <FixedValue value="0"/>
+            </Property>
+            <Property name="z" dimension="?">
+                <FixedValue value="0"/>
+            </Property>
+            <Property name="t" dimension="?">
+                <FixedValue value="0"/>
+            </Property>
+        </Layout>
+        <LL:Projection dst_population="V2_sw">
+            <LL:Annotation>
+                <SpineCreator>
+                    <DrawOptions style="0" showlabel="0"/>
+                    <start x="2.15137" y="5.39717"/>
+                    <curves>
+                        <curve>
+                            <C1 xpos="0.819303" ypos="5.11639"/>
+                            <C2 xpos="-0.237396" ypos="5.32813"/>
+                            <end xpos="-1.42637" ypos="5.51394"/>
+                        </curve>
+                    </curves>
+                </SpineCreator>
+            </LL:Annotation>
+            <LL:Synapse>
+                <OneToOneConnection>
+                    <Delay dimension="ms">
+                        <FixedValue value="1"/>
+                    </Delay>
+                </OneToOneConnection>
+                <LL:WeightUpdate name="V2_r_lines to V2_sw Synapse 0 weight_update" url="Weight.xml" input_src_port="y" input_dst_port="in">
+                    <Property name="w" dimension="?">
+                        <FixedValue value="-0.6"/>
+                    </Property>
+                </LL:WeightUpdate>
+                <LL:PostSynapse name="V2_r_lines to V2_sw Synapse 0 postsynapse" url="passthrough.xml" input_src_port="out" input_dst_port="in" output_src_port="out" output_dst_port="in">
+                    <Property name="w" dimension="?">
+                        <FixedValue value="1"/>
+                    </Property>
+                </LL:PostSynapse>
+            </LL:Synapse>
+        </LL:Projection>
+        <LL:Projection dst_population="V2_p_lines">
+            <LL:Annotation>
+                <SpineCreator>
+                    <DrawOptions style="0" showlabel="0"/>
+                    <start x="2.15137" y="5.99335"/>
+                    <curves>
+                        <curve>
+                            <C1 xpos="0.108981" ypos="6.91769"/>
+                            <C2 xpos="-2.10824" ypos="7.35094"/>
+                            <end xpos="-3.93763" ypos="6.09296"/>
+                        </curve>
+                    </curves>
+                </SpineCreator>
+            </LL:Annotation>
+            <LL:Synapse>
+                <OneToOneConnection>
+                    <Delay dimension="ms">
+                        <FixedValue value="1"/>
+                    </Delay>
+                </OneToOneConnection>
+                <LL:WeightUpdate name="V2_r_lines to V2_p_lines Synapse 0 weight_update" url="Weight.xml" input_src_port="y" input_dst_port="in">
+                    <Property name="w" dimension="?">
+                        <FixedValue value="-0.6"/>
+                    </Property>
+                </LL:WeightUpdate>
+                <LL:PostSynapse name="V2_r_lines to V2_p_lines Synapse 0 postsynapse" url="passthrough.xml" input_src_port="out" input_dst_port="in" output_src_port="out" output_dst_port="in">
+                    <Property name="w" dimension="?">
+                        <FixedValue value="1"/>
+                    </Property>
+                </LL:PostSynapse>
+            </LL:Synapse>
+        </LL:Projection>
+    </LL:Population>
+    <LL:Population>
+        <LL:Annotation>
+            <SpineCreator>
+                <xPos value="-2.2597"/>
+                <yPos value="5.64418"/>
+                <animSpeed value="0.2"/>
+                <aspectRatio value="1.66667"/>
+                <colour red="0" green="170" blue="255"/>
+                <size value="1"/>
+                <tag value="6"/>
+                <x3D value="0"/>
+                <y3D value="0"/>
+                <z3D value="0"/>
+                <is_visualised value="1"/>
+            </SpineCreator>
+        </LL:Annotation>
+        <LL:Neuron name="V2_sw" size="22500" url="LINtanh.xml">
+            <Property name="tau" dimension="?">
+                <FixedValue value="10"/>
+            </Property>
+            <Property name="noise" dimension="?">
+                <FixedValue value="0.01"/>
+            </Property>
+            <Property name="a" dimension="?">
+                <FixedValue value="0"/>
+            </Property>
+            <Property name="y" dimension="?">
+                <FixedValue value="0"/>
+            </Property>
+        </LL:Neuron>
+        <Layout url="grid.xml" seed="123" minimum_distance="0">
+            <Property name="numNeurons" dimension="?">
+                <FixedValue value="0"/>
+            </Property>
+            <Property name="rowlen" dimension="?">
+                <FixedValue value="150"/>
+            </Property>
+            <Property name="x" dimension="?">
+                <FixedValue value="0"/>
+            </Property>
+            <Property name="y" dimension="?">
+                <FixedValue value="0"/>
+            </Property>
+            <Property name="z" dimension="?">
+                <FixedValue value="0"/>
+            </Property>
+            <Property name="t" dimension="?">
+                <FixedValue value="0"/>
+            </Property>
+        </Layout>
+        <LL:Projection dst_population="V2_p_lines">
+            <LL:Annotation>
+                <SpineCreator>
+                    <DrawOptions style="0" showlabel="0"/>
+                    <start x="-3.09303" y="5.57249"/>
+                    <curves>
+                        <curve>
+                            <C1 xpos="-3.41604" ypos="5.35687"/>
+                            <C2 xpos="-3.63844" ypos="5.42299"/>
+                            <end xpos="-3.83141" ypos="5.58211"/>
+                        </curve>
+                    </curves>
+                </SpineCreator>
+            </LL:Annotation>
+            <LL:Synapse>
+                <OneToOneConnection>
+                    <Delay dimension="ms">
+                        <FixedValue value="1"/>
+                    </Delay>
+                </OneToOneConnection>
+                <LL:WeightUpdate name="V2_sw to V2_p_lines Synapse 0 weight_update" url="Weight.xml" input_src_port="y" input_dst_port="in">
+                    <Property name="w" dimension="?">
+                        <FixedValue value="-0.6"/>
+                    </Property>
+                </LL:WeightUpdate>
+                <LL:PostSynapse name="V2_sw to V2_p_lines Synapse 0 postsynapse" url="passthrough.xml" input_src_port="out" input_dst_port="in" output_src_port="out" output_dst_port="in">
+                    <Property name="w" dimension="?">
+                        <FixedValue value="1"/>
+                    </Property>
+                </LL:PostSynapse>
+            </LL:Synapse>
+        </LL:Projection>
+        <LL:Projection dst_population="V2_r_lines">
+            <LL:Annotation>
+                <SpineCreator>
+                    <DrawOptions style="0" showlabel="0"/>
+                    <start x="-1.42637" y="5.82741"/>
+                    <curves>
+                        <curve>
+                            <C1 xpos="-0.0123252" ypos="6.08876"/>
+                            <C2 xpos="0.836821" ypos="5.94724"/>
+                            <end xpos="2.15137" ypos="5.60244"/>
+                        </curve>
+                    </curves>
+                </SpineCreator>
+            </LL:Annotation>
+            <LL:Synapse>
+                <OneToOneConnection>
+                    <Delay dimension="ms">
+                        <FixedValue value="1"/>
+                    </Delay>
+                </OneToOneConnection>
+                <LL:WeightUpdate name="V2_sw to V2_r_lines Synapse 0 weight_update" url="Weight.xml" input_src_port="y" input_dst_port="in">
+                    <Property name="w" dimension="?">
+                        <FixedValue value="-0.6"/>
+                    </Property>
+                </LL:WeightUpdate>
+                <LL:PostSynapse name="V2_sw to V2_r_lines Synapse 0 postsynapse" url="passthrough.xml" input_src_port="out" input_dst_port="in" output_src_port="out" output_dst_port="in">
+                    <Property name="w" dimension="?">
+                        <FixedValue value="1"/>
+                    </Property>
+                </LL:PostSynapse>
+            </LL:Synapse>
+        </LL:Projection>
+    </LL:Population>
+</LL:SpineML>

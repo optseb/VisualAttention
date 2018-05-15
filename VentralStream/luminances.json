@@ -1,0 +1,39 @@
+{"luminances":
+ [
+     {"shape":"rect","thetaX":0,"thetaY":0,"widthThetaX":5,"widthThetaY":1,
+      "luminance":0.8,"timeOn":0.0,"timeOff":0.1}
+     ,
+/*
+     {"shape":"rect","thetaX":0,"thetaY":20,"widthThetaX":5,"widthThetaY":1,"rotation":0,
+      "luminance":0.8,"timeOn":0.0,"timeOff":1.0}
+     ,
+     {"shape":"rect","thetaX":0,"thetaY":-20,"widthThetaX":5,"widthThetaY":1,"rotation":90,
+      "luminance":0.8,"timeOn":0.0,"timeOff":1.0}
+     ,
+*/
+     {"shape":"corner","thetaX":0,"thetaY":3,"widthThetaX":5,"widthThetaY":1,"rotation":0,
+      "luminance":1,"timeOn":0.0,"timeOff":1.0}
+     ,
+     {"shape":"corner","thetaX":0,"thetaY":13,"widthThetaX":5,"widthThetaY":1,"rotation":90,
+      "luminance":0.8,"timeOn":0.0,"timeOff":1.0}
+     ,
+     {"shape":"corner","thetaX":0,"thetaY":19,"widthThetaX":5,"widthThetaY":1,"rotation":180,
+      "luminance":0.6,"timeOn":0.0,"timeOff":1.0}
+     ,
+     {"shape":"corner","thetaX":0,"thetaY":23,"widthThetaX":5,"widthThetaY":1,"rotation":270,
+      "luminance":0.4,"timeOn":0.0,"timeOff":1.0}
+     ,
+
+     {"shape":"corner","thetaX":13,"thetaY":13,"widthThetaX":5,"widthThetaY":1,"rotation":0,
+      "luminance":0.9,"timeOn":0.0,"timeOff":1.0}
+     ,
+     {"shape":"corner","thetaX":13,"thetaY":-13,"widthThetaX":5,"widthThetaY":1,"rotation":90,
+      "luminance":0.7,"timeOn":0.0,"timeOff":1.0}
+     ,
+     {"shape":"corner","thetaX":-13,"thetaY":13,"widthThetaX":5,"widthThetaY":1,"rotation":180,
+      "luminance":0.5,"timeOn":0.0,"timeOff":1.0}
+     ,
+     {"shape":"corner","thetaX":-13,"thetaY":-13,"widthThetaX":5,"widthThetaY":1,"rotation":270,
+      "luminance":0.3,"timeOn":0.0,"timeOff":1.0}
+ ]
+}
