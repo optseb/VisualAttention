@@ -1,0 +1,2 @@
+*/conn_*.bin filter=lfs diff=lfs merge=lfs -text
+*/explicitDataBinaryFile*.bin filter=lfs diff=lfs merge=lfs -text
