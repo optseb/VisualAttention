@@ -182,8 +182,8 @@
                     <curves>
                         <curve>
                             <C1 xpos="-2.58567" ypos="4.21171"/>
-                            <C2 xpos="-5.82939" ypos="3.82889"/>
-                            <end xpos="-5.81623" ypos="6.1278"/>
+                            <C2 xpos="-5.82938" ypos="3.82888"/>
+                            <end xpos="-5.81622" ypos="6.12779"/>
                         </curve>
                     </curves>
                 </SpineCreator>
@@ -359,7 +359,7 @@
                 <LL:WeightUpdate name="V1_p_edges to V2_pMp_rMr Synapse 0 weight_update" url="Weight.xml" input_src_port="y" input_dst_port="in">
                     <Property name="w" dimension="?">
                         <ValueList>
-                            <BinaryFile file_name="explicitDataBinaryFile6.bin" num_elements="44940"/>
+                            <BinaryFile file_name="explicitDataBinaryFile7.bin" num_elements="44940"/>
                         </ValueList>
                     </Property>
                 </LL:WeightUpdate>
@@ -400,7 +400,7 @@
                 <LL:WeightUpdate name="V1_p_edges to V2_pMp_rPr Synapse 0 weight_update" url="Weight.xml" input_src_port="y" input_dst_port="in">
                     <Property name="w" dimension="?">
                         <ValueList>
-                            <BinaryFile file_name="explicitDataBinaryFile11.bin" num_elements="44940"/>
+                            <BinaryFile file_name="explicitDataBinaryFile10.bin" num_elements="44940"/>
                         </ValueList>
                     </Property>
                 </LL:WeightUpdate>
@@ -647,7 +647,7 @@
                 <LL:WeightUpdate name="V1_r_edges to V2_pMp_rMr Synapse 0 weight_update" url="Weight.xml" input_src_port="y" input_dst_port="in">
                     <Property name="w" dimension="?">
                         <ValueList>
-                            <BinaryFile file_name="explicitDataBinaryFile14.bin" num_elements="41601"/>
+                            <BinaryFile file_name="explicitDataBinaryFile12.bin" num_elements="41601"/>
                         </ValueList>
                     </Property>
                 </LL:WeightUpdate>
@@ -688,7 +688,7 @@
                 <LL:WeightUpdate name="V1_r_edges to V2_pMp_rPr Synapse 0 weight_update" url="Weight.xml" input_src_port="y" input_dst_port="in">
                     <Property name="w" dimension="?">
                         <ValueList>
-                            <BinaryFile file_name="explicitDataBinaryFile15.bin" num_elements="41796"/>
+                            <BinaryFile file_name="explicitDataBinaryFile13.bin" num_elements="41796"/>
                         </ValueList>
                     </Property>
                 </LL:WeightUpdate>
@@ -754,10 +754,10 @@
             <LL:Annotation>
                 <SpineCreator>
                     <DrawOptions style="0" showlabel="0"/>
-                    <start x="-5.32735" y="6.38011"/>
+                    <start x="-5.32735" y="6.3801"/>
                     <curves>
                         <curve>
-                            <C1 xpos="-4.40788" ypos="6.10855"/>
+                            <C1 xpos="-4.40788" ypos="6.10854"/>
                             <C2 xpos="-4.69056" ypos="5.46462"/>
                             <end xpos="-3.09303" ypos="5.57631"/>
                         </curve>
@@ -786,10 +786,10 @@
             <LL:Annotation>
                 <SpineCreator>
                     <DrawOptions style="0" showlabel="0"/>
-                    <start x="-6.15079" y="7.12624"/>
+                    <start x="-6.15078" y="7.12623"/>
                     <curves>
                         <curve>
-                            <C1 xpos="-6.02713" ypos="10.4869"/>
+                            <C1 xpos="-6.02712" ypos="10.4869"/>
                             <C2 xpos="5.44692" ypos="10.5177"/>
                             <end xpos="5.69438" ypos="7.18322"/>
                         </curve>
@@ -818,10 +818,10 @@
             <LL:Annotation>
                 <SpineCreator>
                     <DrawOptions style="0" showlabel="0"/>
-                    <start x="-5.32694" y="6.99998"/>
+                    <start x="-5.32693" y="6.99997"/>
                     <curves>
                         <curve>
-                            <C1 xpos="-4.1581" ypos="6.99998"/>
+                            <C1 xpos="-4.15809" ypos="6.99997"/>
                             <C2 xpos="-4.16864" ypos="7.69685"/>
                             <end xpos="-3.10416" ypos="7.72699"/>
                         </curve>
@@ -850,10 +850,10 @@
             <LL:Annotation>
                 <SpineCreator>
                     <DrawOptions style="0" showlabel="0"/>
-                    <start x="-5.70237" y="7.12624"/>
+                    <start x="-5.70236" y="7.12623"/>
                     <curves>
                         <curve>
-                            <C1 xpos="-3.81812" ypos="8.81332"/>
+                            <C1 xpos="-3.81812" ypos="8.8133"/>
                             <C2 xpos="-0.865372" ypos="9.84036"/>
                             <end xpos="1.69323" ypos="8.14492"/>
                         </curve>
@@ -882,10 +882,10 @@
             <LL:Annotation>
                 <SpineCreator>
                     <DrawOptions style="0" showlabel="0"/>
-                    <start x="-5.32735" y="6.68333"/>
+                    <start x="-5.32735" y="6.68332"/>
                     <curves>
                         <curve>
-                            <C1 xpos="-1.57962" ypos="6.94007"/>
+                            <C1 xpos="-1.57961" ypos="6.94006"/>
                             <C2 xpos="-1.35589" ypos="6.75753"/>
                             <end xpos="1.05323" ypos="5.86346"/>
                         </curve>
@@ -904,38 +904,6 @@
                     </Property>
                 </LL:WeightUpdate>
                 <LL:PostSynapse name="V2_p_lines to V2_pMp_rPr Synapse 0 postsynapse" url="passthrough.xml" input_src_port="out" input_dst_port="in" output_src_port="out" output_dst_port="in">
-                    <Property name="w" dimension="?">
-                        <FixedValue value="1"/>
-                    </Property>
-                </LL:PostSynapse>
-            </LL:Synapse>
-        </LL:Projection>
-        <LL:Projection dst_population="V2_p_lines">
-            <LL:Annotation>
-                <SpineCreator>
-                    <DrawOptions style="4" showlabel="0"/>
-                    <start x="-6.649" y="7.12624"/>
-                    <curves>
-                        <curve>
-                            <C1 xpos="-7.44923" ypos="7.94563"/>
-                            <C2 xpos="-7.69008" ypos="7.0683"/>
-                            <end xpos="-6.99402" ypos="6.86711"/>
-                        </curve>
-                    </curves>
-                </SpineCreator>
-            </LL:Annotation>
-            <LL:Synapse>
-                <OneToOneConnection>
-                    <Delay dimension="ms">
-                        <FixedValue value="1"/>
-                    </Delay>
-                </OneToOneConnection>
-                <LL:WeightUpdate name="V2_p_lines to V2_p_lines Synapse 0 weight_update" url="Weight.xml" input_src_port="y" input_dst_port="in">
-                    <Property name="w" dimension="?">
-                        <FixedValue value="1"/>
-                    </Property>
-                </LL:WeightUpdate>
-                <LL:PostSynapse name="V2_p_lines to V2_p_lines Synapse 0 postsynapse" url="passthrough.xml" input_src_port="out" input_dst_port="in" output_src_port="out" output_dst_port="in">
                     <Property name="w" dimension="?">
                         <FixedValue value="1"/>
                     </Property>
@@ -1033,8 +1001,8 @@
                     <curves>
                         <curve>
                             <C1 xpos="5.11108" ypos="10.5674"/>
-                            <C2 xpos="-5.82664" ypos="9.77747"/>
-                            <end xpos="-5.88893" ypos="7.12624"/>
+                            <C2 xpos="-5.82664" ypos="9.77746"/>
+                            <end xpos="-5.88892" ypos="7.12623"/>
                         </curve>
                     </curves>
                 </SpineCreator>
@@ -1153,38 +1121,6 @@
                 </LL:PostSynapse>
             </LL:Synapse>
         </LL:Projection>
-        <LL:Projection dst_population="V2_r_lines">
-            <LL:Annotation>
-                <SpineCreator>
-                    <DrawOptions style="4" showlabel="0"/>
-                    <start x="6.36268" y="6.48322"/>
-                    <curves>
-                        <curve>
-                            <C1 xpos="7.36268" ypos="6.48322"/>
-                            <C2 xpos="6.06268" ypos="5.18322"/>
-                            <end xpos="6.06268" ypos="6.18322"/>
-                        </curve>
-                    </curves>
-                </SpineCreator>
-            </LL:Annotation>
-            <LL:Synapse>
-                <OneToOneConnection>
-                    <Delay dimension="ms">
-                        <FixedValue value="1"/>
-                    </Delay>
-                </OneToOneConnection>
-                <LL:WeightUpdate name="V2_r_lines to V2_r_lines Synapse 0 weight_update" url="Weight.xml" input_src_port="y" input_dst_port="in">
-                    <Property name="w" dimension="?">
-                        <FixedValue value="1"/>
-                    </Property>
-                </LL:WeightUpdate>
-                <LL:PostSynapse name="V2_r_lines to V2_r_lines Synapse 0 postsynapse" url="passthrough.xml" input_src_port="out" input_dst_port="in" output_src_port="out" output_dst_port="in">
-                    <Property name="w" dimension="?">
-                        <FixedValue value="1"/>
-                    </Property>
-                </LL:PostSynapse>
-            </LL:Synapse>
-        </LL:Projection>
     </LL:Population>
     <LL:Population>
         <LL:Annotation>
@@ -1244,8 +1180,8 @@
                     <curves>
                         <curve>
                             <C1 xpos="-3.93465" ypos="5.21988"/>
-                            <C2 xpos="-4.20455" ypos="5.54715"/>
-                            <end xpos="-5.32735" ypos="6.2733"/>
+                            <C2 xpos="-4.20454" ypos="5.54714"/>
+                            <end xpos="-5.32735" ypos="6.27329"/>
                         </curve>
                     </curves>
                 </SpineCreator>
@@ -1396,38 +1332,6 @@
                 </LL:PostSynapse>
             </LL:Synapse>
         </LL:Projection>
-        <LL:Projection dst_population="V2_pPp_rPr">
-            <LL:Annotation>
-                <SpineCreator>
-                    <DrawOptions style="4" showlabel="0"/>
-                    <start x="-2.84866" y="6.14418"/>
-                    <curves>
-                        <curve>
-                            <C1 xpos="-3.66561" ypos="6.83772"/>
-                            <C2 xpos="-3.81024" ypos="6.00511"/>
-                            <end xpos="-3.09303" ypos="5.83816"/>
-                        </curve>
-                    </curves>
-                </SpineCreator>
-            </LL:Annotation>
-            <LL:Synapse>
-                <OneToOneConnection>
-                    <Delay dimension="ms">
-                        <FixedValue value="1"/>
-                    </Delay>
-                </OneToOneConnection>
-                <LL:WeightUpdate name="V2_pPp_rPr to V2_pPp_rPr Synapse 0 weight_update" url="Weight.xml" input_src_port="y" input_dst_port="in">
-                    <Property name="w" dimension="?">
-                        <FixedValue value="1"/>
-                    </Property>
-                </LL:WeightUpdate>
-                <LL:PostSynapse name="V2_pPp_rPr to V2_pPp_rPr Synapse 0 postsynapse" url="passthrough.xml" input_src_port="out" input_dst_port="in" output_src_port="out" output_dst_port="in">
-                    <Property name="w" dimension="?">
-                        <FixedValue value="1"/>
-                    </Property>
-                </LL:PostSynapse>
-            </LL:Synapse>
-        </LL:Projection>
     </LL:Population>
     <LL:Population>
         <LL:Annotation>
@@ -1468,8 +1372,8 @@
                     <curves>
                         <curve>
                             <C1 xpos="-4.26574" ypos="7.50843"/>
-                            <C2 xpos="-4.26555" ypos="6.86726"/>
-                            <end xpos="-5.32697" ypos="6.86726"/>
+                            <C2 xpos="-4.26554" ypos="6.86725"/>
+                            <end xpos="-5.32696" ypos="6.86725"/>
                         </curve>
                     </curves>
                 </SpineCreator>
@@ -1614,38 +1518,6 @@
                     </Property>
                 </LL:WeightUpdate>
                 <LL:PostSynapse name="V2_pPp_rMr to V2_pMp_rPr Synapse 0 postsynapse" url="passthrough.xml" input_src_port="out" input_dst_port="in" output_src_port="out" output_dst_port="in">
-                    <Property name="w" dimension="?">
-                        <FixedValue value="1"/>
-                    </Property>
-                </LL:PostSynapse>
-            </LL:Synapse>
-        </LL:Projection>
-        <LL:Projection dst_population="V2_pPp_rMr">
-            <LL:Annotation>
-                <SpineCreator>
-                    <DrawOptions style="4" showlabel="0"/>
-                    <start x="-2.81841" y="8.25092"/>
-                    <curves>
-                        <curve>
-                            <C1 xpos="-3.63268" ypos="8.99467"/>
-                            <C2 xpos="-3.83816" ypos="8.03097"/>
-                            <end xpos="-3.10432" ypos="7.89984"/>
-                        </curve>
-                    </curves>
-                </SpineCreator>
-            </LL:Annotation>
-            <LL:Synapse>
-                <OneToOneConnection>
-                    <Delay dimension="ms">
-                        <FixedValue value="1"/>
-                    </Delay>
-                </OneToOneConnection>
-                <LL:WeightUpdate name="V2_pPp_rMr to V2_pPp_rMr Synapse 0 weight_update" url="Weight.xml" input_src_port="y" input_dst_port="in">
-                    <Property name="w" dimension="?">
-                        <FixedValue value="1"/>
-                    </Property>
-                </LL:WeightUpdate>
-                <LL:PostSynapse name="V2_pPp_rMr to V2_pPp_rMr Synapse 0 postsynapse" url="passthrough.xml" input_src_port="out" input_dst_port="in" output_src_port="out" output_dst_port="in">
                     <Property name="w" dimension="?">
                         <FixedValue value="1"/>
                     </Property>
@@ -1820,8 +1692,8 @@
                     <curves>
                         <curve>
                             <C1 xpos="-2.43473" ypos="7.08772"/>
-                            <C2 xpos="-2.50809" ypos="6.64755"/>
-                            <end xpos="-5.32735" ypos="6.51941"/>
+                            <C2 xpos="-2.50808" ypos="6.64754"/>
+                            <end xpos="-5.32735" ypos="6.5194"/>
                         </curve>
                     </curves>
                 </SpineCreator>
@@ -1838,38 +1710,6 @@
                     </Property>
                 </LL:WeightUpdate>
                 <LL:PostSynapse name="V2_pMp_rPr to V2_p_lines Synapse 0 postsynapse" url="passthrough.xml" input_src_port="out" input_dst_port="in" output_src_port="out" output_dst_port="in">
-                    <Property name="w" dimension="?">
-                        <FixedValue value="1"/>
-                    </Property>
-                </LL:PostSynapse>
-            </LL:Synapse>
-        </LL:Projection>
-        <LL:Projection dst_population="V2_pMp_rPr">
-            <LL:Annotation>
-                <SpineCreator>
-                    <DrawOptions style="4" showlabel="0"/>
-                    <start x="2.71989" y="5.35419"/>
-                    <curves>
-                        <curve>
-                            <C1 xpos="3.71989" ypos="5.35419"/>
-                            <C2 xpos="2.41989" ypos="4.05419"/>
-                            <end xpos="2.41989" ypos="5.05419"/>
-                        </curve>
-                    </curves>
-                </SpineCreator>
-            </LL:Annotation>
-            <LL:Synapse>
-                <OneToOneConnection>
-                    <Delay dimension="ms">
-                        <FixedValue value="1"/>
-                    </Delay>
-                </OneToOneConnection>
-                <LL:WeightUpdate name="V2_pMp_rPr to V2_pMp_rPr Synapse 0 weight_update" url="Weight.xml" input_src_port="y" input_dst_port="in">
-                    <Property name="w" dimension="?">
-                        <FixedValue value="1"/>
-                    </Property>
-                </LL:WeightUpdate>
-                <LL:PostSynapse name="V2_pMp_rPr to V2_pMp_rPr Synapse 0 postsynapse" url="passthrough.xml" input_src_port="out" input_dst_port="in" output_src_port="out" output_dst_port="in">
                     <Property name="w" dimension="?">
                         <FixedValue value="1"/>
                     </Property>
@@ -2044,8 +1884,8 @@
                     <curves>
                         <curve>
                             <C1 xpos="-0.581101" ypos="9.27182"/>
-                            <C2 xpos="-3.32693" ypos="8.76577"/>
-                            <end xpos="-5.49845" ypos="7.12624"/>
+                            <C2 xpos="-3.32692" ypos="8.76576"/>
+                            <end xpos="-5.49844" ypos="7.12623"/>
                         </curve>
                     </curves>
                 </SpineCreator>
@@ -2062,38 +1902,6 @@
                     </Property>
                 </LL:WeightUpdate>
                 <LL:PostSynapse name="V2_pMp_rMr to V2_p_lines Synapse 0 postsynapse" url="passthrough.xml" input_src_port="out" input_dst_port="in" output_src_port="out" output_dst_port="in">
-                    <Property name="w" dimension="?">
-                        <FixedValue value="1"/>
-                    </Property>
-                </LL:PostSynapse>
-            </LL:Synapse>
-        </LL:Projection>
-        <LL:Projection dst_population="V2_pMp_rMr">
-            <LL:Annotation>
-                <SpineCreator>
-                    <DrawOptions style="4" showlabel="0"/>
-                    <start x="2.70073" y="7.39363"/>
-                    <curves>
-                        <curve>
-                            <C1 xpos="3.29416" ypos="6.9734"/>
-                            <C2 xpos="2.8569" ypos="6.88931"/>
-                            <end xpos="2.59943" ypos="7.14492"/>
-                        </curve>
-                    </curves>
-                </SpineCreator>
-            </LL:Annotation>
-            <LL:Synapse>
-                <OneToOneConnection>
-                    <Delay dimension="ms">
-                        <FixedValue value="1"/>
-                    </Delay>
-                </OneToOneConnection>
-                <LL:WeightUpdate name="V2_pMp_rMr to V2_pMp_rMr Synapse 0 weight_update" url="Weight.xml" input_src_port="y" input_dst_port="in">
-                    <Property name="w" dimension="?">
-                        <FixedValue value="1"/>
-                    </Property>
-                </LL:WeightUpdate>
-                <LL:PostSynapse name="V2_pMp_rMr to V2_pMp_rMr Synapse 0 postsynapse" url="passthrough.xml" input_src_port="out" input_dst_port="in" output_src_port="out" output_dst_port="in">
                     <Property name="w" dimension="?">
                         <FixedValue value="1"/>
                     </Property>
