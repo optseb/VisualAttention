@@ -9,8 +9,8 @@
 #PARNAME=fovshift       #LOC=2,2
 #PARNAME=nfs            #LOC=3,1
 #PARNAME=W_cut          #LOC=3,2
-#PARNAME=offsetd0       #LOC=4,1
-#PARNAME=offsetd1       #LOC=4,2
+#PARNAME=offsetd0p      #LOC=4,1
+#PARNAME=offsetd1r      #LOC=4,2
 #HASWEIGHT
 
 # Compute a widening Gaussian connection function for a retinotopic
@@ -19,12 +19,12 @@
 # but with a configurable neural field size width (W_nfs).
 #
 # This version incorporates an offset for dstloc[0] and dstloc[1] to
-# shift the Gaussian projection by a desired amount AND it does so to dual Gaussians, offset by +/=offsetd0 and +/-offsetd1
+# shift the Gaussian projection by a desired amount AND it does so to dual Gaussians, offset by +/=offsetd0p and +/-offsetd1r
 #
-# offsetd0 is the +/- phi direction
-# offsetd1 is in the +/- r direction
+# offsetd0p is the +/- phi direction
+# offsetd1r is in the +/- r direction
 
-def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd0,offsetd1):
+def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd0p,offsetd1r):
 
   import math
 
@@ -46,8 +46,8 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
     for dstloc in dstlocs:
 
       # in-xy-plane distance (ignore srcloc[2]/dstdoc[2])
-      dist1 = math.sqrt(math.pow((srcloc[0] - dstloc[0] + offsetd0),2) + math.pow((srcloc[1] - dstloc[1] + offsetd1),2))
-      dist2 = math.sqrt(math.pow((srcloc[0] - dstloc[0] - offsetd0),2) + math.pow((srcloc[1] - dstloc[1] - offsetd1),2))
+      dist1 = math.sqrt(math.pow((srcloc[0] - dstloc[0] + offsetd0p),2) + math.pow((srcloc[1] - dstloc[1] + offsetd1r),2))
+      dist2 = math.sqrt(math.pow((srcloc[0] - dstloc[0] - offsetd0p),2) + math.pow((srcloc[1] - dstloc[1] - offsetd1r),2))
 
       gauss1 = math.exp(-0.5*math.pow(dist1/_sigma,2))
       gauss2 = math.exp(-0.5*math.pow(dist2/_sigma,2))
@@ -78,8 +78,8 @@ fovshift = 4
 nfs = 50
 W_cut = 0.001
 
-offsetd0 = 0
-offsetd1 = 6
+offsetd0p = 0
+offsetd1r = 6
 
 # Containers for source/destination locations
 srclocs = []
@@ -90,11 +90,11 @@ for i in range(0, rowlen):
         srclocs.append(srcloc)
 
 # Call the connectionFunc to generate result
-result = connectionFunc (srclocs,srclocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd0,offsetd1)
+result = connectionFunc (srclocs,srclocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd0p,offsetd1r)
 
-#offsetd0 = 6
-#offsetd1 = 0
-#result2 = connectionFunc (srclocs,srclocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd0,offsetd1)
+#offsetd0p = 6
+#offsetd1r = 0
+#result2 = connectionFunc (srclocs,srclocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd0p,offsetd1r)
 print "Done computing"
 
 

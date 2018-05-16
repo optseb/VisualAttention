@@ -9,8 +9,8 @@
 #PARNAME=fovshift       #LOC=2,2
 #PARNAME=nfs            #LOC=3,1
 #PARNAME=W_cut          #LOC=3,2
-#PARNAME=offsetd0       #LOC=4,1
-#PARNAME=offsetd1       #LOC=4,2
+#PARNAME=offsetd0p      #LOC=4,1
+#PARNAME=offsetd1r      #LOC=4,2
 #HASWEIGHT
 
 # Compute a widening Gaussian connection function for a retinotopic
@@ -20,8 +20,19 @@
 #
 # This version incorporates an offset for dstloc[0] and dstloc[1] to
 # shift the Gaussian projection by a desired amount.
+#
+# Considering the r direction, r_d^max, the destination r value for
+# max connection strength for a given r_s is given by
+#
+# r_d^max = r_s + offsetd1r
+#
+# Thus for positive offsetd1r, "connections are stronger in the
+# positive r direction away from the source".
+#
+# For positive offsetd0p, "connections are stronger in the
+# positive p direction away from the source".
 
-def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd0,offsetd1):
+def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd0p,offsetd1r):
 
   import math
 
@@ -44,8 +55,8 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
     for dstloc in dstlocs:
 
       # in-xy-plane distance (ignore srcloc[2]/dstdoc[2])
-      xd = (srcloc[0] - dstloc[0] + offsetd0)
-      yd = (srcloc[1] - dstloc[1] + offsetd1)
+      xd = (srcloc[0] - dstloc[0] + offsetd0p)
+      yd = (srcloc[1] - dstloc[1] + offsetd1r)
       if abs(xd) < three_sigma and abs(yd) < three_sigma:
         dist = math.sqrt(math.pow(xd,2) + math.pow(yd,2))
 
@@ -74,8 +85,8 @@ fovshift = 4
 nfs = 50
 W_cut = 0.001
 
-offsetd0 = 0
-offsetd1 = 0
+offsetd0p = 0
+offsetd1r = 0
 
 # Containers for source/destination locations
 srclocs = []
@@ -86,10 +97,10 @@ for i in range(0, rowlen):
         srclocs.append(srcloc)
 
 # Call the connectionFunc to generate result
-result = connectionFunc (srclocs,srclocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd0,offsetd1)
-offsetd0 = 4
-offsetd1 = 4
-result2 = connectionFunc (srclocs,srclocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd0,offsetd1)
+result = connectionFunc (srclocs,srclocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd0p,offsetd1r)
+offsetd0p = 4
+offsetd1r = 4
+result2 = connectionFunc (srclocs,srclocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd0p,offsetd1r)
 print "Done computing"
 
 

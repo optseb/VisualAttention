@@ -2,7 +2,9 @@
 function vssurf (fign, data, field, time, surf_view=1, toplim=1, botlim=0)
     figure(fign)
     surf (data.(field)(:,:,time))
-    title (field)
+    % Escape underscores and set title:
+    titlestr = regexprep (field, '_', '\_');
+    title (titlestr);
     zlim([botlim, toplim])
     % Add some useful views here:
     if (surf_view==1)
