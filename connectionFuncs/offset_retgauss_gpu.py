@@ -37,6 +37,7 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
   import math
   import numpy as np
   from numba import cuda, float32, int32
+  from operator import gt
 
   # Compute once only
   M_f_start=nfs/(E2*math.log((fovshift/(2*E2))+1))
@@ -46,30 +47,55 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
 #  src_ar = cuda.to_device(np.array(srclocs, dtype=np.int32))
 #  dst_ar = cuda.to_device(np.array(dstlocs, dtype=np.int32))
   src_ar = np.array(srclocs, dtype=np.int32)
-  print ("src_ar shape: " + str(src_ar.shape))
   dst_ar = np.array(dstlocs, dtype=np.int32)
 
+  # Large array of weights. Could make device only saving 3.5 s.
+  weight_ar =  np.zeros((nfs_sq*nfs_sq,), dtype=np.float32)
+  print ("weight_ar shape: " + str(weight_ar.shape))
+
+  # Results array to take the non-zero weights from weight_ar.
+  #
   # results is n by 4: [src_idx, dst_idx, delay, weight]
   #res_ar = cuda.to_device(np.zeros((6000000,4), dtype=np.float32))
   #res_idx = cuda.to_device(np.zeros((1,), dtype=np.int32))
   # or
   res_ar = np.zeros((6250000,4), dtype=np.float32)
+
+  # An index to be used into the final results table, res_ar
   res_idx = np.zeros((1,), dtype=np.int32)
 
+  # Bank-conflict avoidance means being careful with indexing
+  # This version allows you to skip in groups of (3)
+  @cuda.jit(device=True)
+  def shifted_idx_skipping (idx):
+    skip_width = 3
+    num_banks = 16 # 16 and 768 works for GTX1070/Compute capability 6.1
+    bank_width_int32 = 768 # would 32 and 384 be ok? I though 32 and
+                           # 768 would be ok, as this is 3kB for 32
+                           # banks of shared memory.
+    max_idx = (bank_width_int32 * num_banks) // skip_width  # Can't deal with a larger n than this
+    #if bank_width_int32 % skip_width:
+    #    return -2
+    bank_width_groups = bank_width_int32 // skip_width
+    idx_idiv_num_banks = idx // num_banks
+    idx_mod_num_banks = idx % num_banks
+    offs_idx = skip_width * ((bank_width_groups * idx_mod_num_banks) + (idx_idiv_num_banks))
+    return offs_idx
+
   # Use @cuda.jit(device=True) to write a device function
-  @cuda.jit#("void(float32, int32, float32[:,:], float32[:,:], float32[:,:], int32[:], float32,float32,float32,float32,float32,float32,int32,int32)")
-  def dowork (M_f_start, nfs_sq, src_ar, dst_ar, res_ar, res_idx, sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd0p,offsetd1r):
+  @cuda.jit("void(float32, int32, float32[:,:], float32[:,:], float32[:], float32,float32,float32,float32,float32,float32,int32,int32)")
+  def dowork (M_f_start, nfs_sq, src_ar, dst_ar, weight_ar, sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd0p,offsetd1r):
     # Work out i_src and i_dst based on the 2-D thread index
     i_src, i_dst = cuda.grid(2)
     if i_src < nfs_sq and i_dst < nfs_sq:
 
-      # Temporary shared memory for results
-      tmp_res = cuda.shared.array((256,4), dtype=float32)
+      # Temporary shared memory for weights
+      tmp_w = cuda.shared.array(12288, dtype=float32) # Note - allocating ALL shared memory here.
       myidx = (cuda.threadIdx.x*cuda.blockDim.y + cuda.threadIdx.x)
-      tmp_res[myidx,0] = float32(0.0)
-      tmp_res[myidx,1] = float32(0.0)
-      tmp_res[myidx,2] = float32(0.0)
-      tmp_res[myidx,3] = float32(0.0)
+      offsidx = shifted_idx_skipping(myidx)
+      tmp_w[offsidx] = float32(0.0)
+      tmp_w[offsidx+1] = float32(0.0)
+      tmp_w[offsidx+2] = float32(0.0)
       cuda.syncthreads()
 
       # Compute the location of src_ar, this defines what sigma will be. As r (as opp. to phi) increases, the sigma should increase.
@@ -86,36 +112,58 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
       # in-xy-plane distance (ignore src_ar[2]/dstdoc[2])
       xd = (src_ar[i_src,0] - dst_ar[i_dst,0] + offsetd0p)
       yd = (src_ar[i_src,1] - dst_ar[i_dst,1] + offsetd1r)
-      if True:#abs(xd) < three_sigma and abs(yd) < three_sigma:
-        dist = math.sqrt(math.pow(xd,2) + math.pow(yd,2)) # why so small???
+      if abs(xd) < three_sigma and abs(yd) < three_sigma:
+        dist = math.sqrt(math.pow(xd,2) + math.pow(yd,2))
         gauss = math.exp(-0.5*math.pow(dist/_sigma,2))
-        gauss_alt = dist/_sigma
-        if True:#gauss > W_cut:
-          # Write result into the per-block shared memory
-          tmp_res[myidx, 0] = float32(i_src)
-          tmp_res[myidx, 1] = float32(i_dst)
-          tmp_res[myidx, 2] = float32(7.0)
-          tmp_res[myidx, 3] = float32(gauss) # gauss
+        if gauss > W_cut:
+          # Write result into weight_ar
+          tmp_w[offsidx] = float32(gauss)
+          tmp_w[offsidx+1] = float32(i_src)
+          tmp_w[offsidx+2] = float32(i_dst)
 
       # Sync threads, then access device memory with any results
       cuda.syncthreads()
       if cuda.threadIdx.x == 0 and cuda.threadIdx.y == 0:
-        # Write data from tmp_res to res_ar, but only in ONE thread from the threadblock. Should avoid racing.
-        for idx in range(0,256):
-          if True: #tmp_res[idx,3] > W_cut:
-            # Add to res_ar!
-            cuda.atomic.compare_and_swap(res_ar[res_idx[0],0], 0, tmp_res[idx,0])
-            #res_ar[res_idx[0],0] = tmp_res[idx,0]
-            res_ar[res_idx[0],1] = tmp_res[idx,1]
-            res_ar[res_idx[0],2] = tmp_res[idx,2]
-            res_ar[res_idx[0],3] = tmp_res[idx,3]
-            res_idx[0] = res_idx[0] + 1
+        # Write data from tmp_w to res_ar, but only in ONE thread from the threadblock. Should avoid racing.
+        for idx in range(0,512):
+          offsidx = shifted_idx_skipping (idx)
+          theweight = tmp_w[offsidx]
+          #if gt(theweight, W_cut): # Testing makes no difference to speed
+          # Add to weight_ar
+          weight_idx = int32(tmp_w[offsidx+1])*nfs_sq + int32(tmp_w[offsidx+2])
+          weight_ar[weight_idx] = theweight
+
       cuda.syncthreads()
 
+
+  # Skipping two at a time for prescan
+  @cuda.jit(device=True)
+  def shifted_idx_skip2 (idx):
+    skip_width = 2
+    num_banks = 16 # 16 and 768 works for GTX1070/Compute capability 6.1
+    bank_width_int32 = 768 # would 32 and 384 be ok? I though 32 and
+                           # 768 would be ok, as this is 3kB for 32
+                           # banks of shared memory.
+    max_idx = (bank_width_int32 * num_banks) // skip_width  # Can't deal with a larger n than this
+    #if bank_width_int32 % skip_width:
+    #    return -2
+    bank_width_groups = bank_width_int32 // skip_width
+    idx_idiv_num_banks = idx // num_banks
+    idx_mod_num_banks = idx % num_banks
+    offs_idx = skip_width * ((bank_width_groups * idx_mod_num_banks) + (idx_idiv_num_banks))
+    return offs_idx
+
+  # parallel scan for stream compaction (See sect. 39.3 https://developer.nvidia.com/gpugems/GPUGems3/gpugems3_ch39.html)
+  @cuda.jit
+  def reduceit(res_ar, weight_ar, res_idx):
+    # FIXME next.
+    cuda.syncthreads()
+
   # Now the kernel function is defined, call it
-  threadsperblock = (16,16) # 8 warps to a block; 256 threads to a block
+  threadsperblock = (16,32) # 8 warps to a block; 256 threads to a block. 512 might be optimal?
   blockspergrid = (1+(nfs_sq // threadsperblock[0]), 1+(nfs_sq // threadsperblock[1]))
-  dowork[blockspergrid, threadsperblock](M_f_start, nfs_sq, src_ar, dst_ar, res_ar, res_idx, sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd0p,offsetd1r)
+  dowork[blockspergrid, threadsperblock](M_f_start, nfs_sq, src_ar, dst_ar, weight_ar, sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd0p,offsetd1r)
+  reduceit[blockspergrid*threadsperblock](weight_ar, res_ar, res_idx)
 
 
   # Now get results from device, sort, and return out. Crazy slow.
@@ -162,7 +210,7 @@ print ("Done computing")
 # 3) Show weight results for one particular source neuron projecting
 # out to destination neurons.
 #
-show_graphs = 1
+show_graphs = 0
 if show_graphs>0:
     import math
 
