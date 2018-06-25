@@ -29,14 +29,12 @@ def shifted_idx (idx):
 # the kernel invocation, in any case. I could also possibly allocate
 # another region of device RAM to hold integers, so that the memory
 # addresses would be safe.
-@cuda.jit("void(float32[:], int32)")
-def prenorm(weight_ar_, arraysz):
-    thid = cuda.threadIdx.x
-    tb_offset = cuda.blockIdx.x*cuda.blockDim.x # threadblock offset
-    realthid = thid + tb_offset
-    if realthid < arraysz:
-        if weight_ar_[realthid] > 0:
-            weight_ar_[realthid] = 1
+@cuda.jit("void(float32[:], uint32[:], int32)")
+def prenorm(weight_ar_, nonzero_ar_, arraysz):
+    thid = cuda.threadIdx.x + (cuda.blockIdx.x*cuda.blockDim.x)
+    if thid < arraysz:
+        if weight_ar_[thid] > 0:
+            nonzero_ar_[thid] = 1
 
 # parallel scan for stream compaction (See sect. 39.3
 # https://developer.nvidia.com/gpugems/GPUGems3/gpugems3_ch39.html)
@@ -48,8 +46,8 @@ def prenorm(weight_ar_, arraysz):
 #
 # Before calling python scan_test.py
 #
-@cuda.jit("void(float32[:], float32[:], float32[:], int32, int32)")
-def reduceit(scan_ar_, weight_ar_, carry_, n, arraysz):
+@cuda.jit("void(int32[:], uint32[:], float32[:], uint32, uint32)")
+def reduceit(scan_ar_, nonzero_ar_, carry_, n, arraysz):
     thid = cuda.threadIdx.x
     tb_offset = cuda.blockIdx.x*cuda.blockDim.x # threadblock offset
     d = n//2
@@ -63,20 +61,9 @@ def reduceit(scan_ar_, weight_ar_, carry_, n, arraysz):
         ai_s = shifted_idx(ai)
         bi_s = shifted_idx(bi)
 
-        if 1:
-            # Summing scheme
-            temp[ai_s] = weight_ar_[ai+tb_offset]
-            temp[bi_s] = weight_ar_[bi+tb_offset]
-        else:
-            # Naive adding scheme. DOES NOT WORK. See prenorm
-            if weight_ar_[ai+tb_offset] > 0.0:
-                temp[ai_s] = 1 # weight_ar_[ai+tb_offset]
-            else:
-                temp[ai_s] = 0
-            if weight_ar_[bi+tb_offset] > 0.0:
-                temp[bi_s] = 1 # weight_ar_[bi+tb_offset]
-            else:
-                temp[bi_s] = 0
+        # Summing scheme
+        temp[ai_s] = nonzero_ar_[ai+tb_offset]
+        temp[bi_s] = nonzero_ar_[bi+tb_offset]
 
         offset = 1
         # Upsweep: Ebuild sum in place up the tree
@@ -174,8 +161,10 @@ else:
 
 # weight_ar is the input
 weight_ar = np.zeros((arrayszplus,), dtype=np.float32)
+# nonzero_ar is set to 1 for every element for which weight_ar is >0
+nonzero_ar = np.zeros((arrayszplus,), dtype=np.uint32)
 # scan_ar is going to hold the result of scanning the input
-scan_ar = np.zeros((arrayszplus,), dtype=np.float32)
+scan_ar = np.zeros((arrayszplus,), dtype=np.uint32)
 
 # Now some non-zero, non-unary weights
 weight_ar[0] = 1
@@ -208,10 +197,11 @@ weight_ar[22] = 1
 
 # Explicitly copy to device
 d_weight_ar = cuda.to_device (weight_ar)
+d_nonzero_ar = cuda.to_device (nonzero_ar)
 d_scan_ar = cuda.to_device (scan_ar)
 
 # scanf is a data structure to hold the final, corrected scan
-scanf = np.zeros((arrayszplus,), dtype=np.float32)
+scanf = np.zeros((arrayszplus,), dtype=np.uint32)
 d_scanf = cuda.to_device(scanf)
 
 # We now have the arrays in d_carrylist, which needs to be scanned, so that it
@@ -251,7 +241,7 @@ while asz > threadsperblock:
 print ("After carrylist allocation, asz is " + str(asz) +  " and size of lists is: " + str(len(scanlist)))
 
 # Add a last carrylist, as this will be required as a dummy carry list for the last call to reduceit()
-carrylist.append (np.zeros((1,), dtype=np.float32))
+carrylist.append (np.zeros((1,), dtype=np.uint32))
 d_carrylist.append (cuda.to_device(carrylist[-1]))
 
 #
@@ -265,7 +255,7 @@ print ("0. asz=" + str(asz) + ", scanblocks=" + str(blockspergrid) + ", scanarra
 #After carrylist allocation, asz is 3 and size of lists is: 1
 #0. asz=384, scanblocks=3, scanarray length: 384, carry(out) size: 128
 
-prenorm[blockspergrid, threadsperblock](d_weight_ar, asz)
+prenorm[blockspergrid, threadsperblock](d_weight_ar, d_nonzero_ar, asz)
 reduceit[blockspergrid, threadsperblock](d_scan_ar, d_weight_ar, d_carrylist[0], threadsperblock, asz)
 
 asz = math.ceil (asz / threadsperblock)
