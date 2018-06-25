@@ -75,12 +75,12 @@ def reduceit(scan_ar_, nonzero_ar_, carry_, n, arraysz):
             bi = offset*(2*thid+2)-1
             ai_s = shifted_idx(ai)
             bi_s = shifted_idx(bi)
-            if cuda.blockIdx.x == 0:
-                print ("In upsweep, d=" + str(d) + ", temp[bi_s:" + str(bi_s) + "]=" + str(temp[bi_s]) + " += temp[ai_s:" + str(ai_s) + "]=" + str(temp[ai_s]))
+            #if cuda.blockIdx.x == 0:
+            #    print ("In upsweep, d=" + str(d) + ", temp[bi_s:" + str(bi_s) + "]=" + str(temp[bi_s]) + " += temp[ai_s:" + str(ai_s) + "]=" + str(temp[ai_s]))
             temp[bi_s] += temp[ai_s]
 
-            if cuda.blockIdx.x == 0:
-                print ("In upsweep, d=" + str(d) + ", now temp[bi_s:" + str(bi_s) + "]=" + str(temp[bi_s]))
+            #if cuda.blockIdx.x == 0:
+            #    print ("In upsweep, d=" + str(d) + ", now temp[bi_s:" + str(bi_s) + "]=" + str(temp[bi_s]))
 
           offset *= 2
           d >>= 1
@@ -92,7 +92,7 @@ def reduceit(scan_ar_, nonzero_ar_, carry_, n, arraysz):
           nm1s = shifted_idx(n-1)
           # Carry last number in the block
           carry_[cuda.blockIdx.x] = temp[nm1s];
-          print("reduceit: clear last element; carry_[" + str(cuda.blockIdx.x) + "] = " + str(temp[nm1s]))
+          #print("reduceit: clear last element; carry_[" + str(cuda.blockIdx.x) + "] = " + str(temp[nm1s]))
           # Zero it
           temp[nm1s] = 0
 
@@ -112,14 +112,14 @@ def reduceit(scan_ar_, nonzero_ar_, carry_, n, arraysz):
             t = temp[ai_s]
             temp[ai_s] = temp[bi_s]
             temp[bi_s] += t
-            if cuda.blockIdx.x == 0:
-                print("After downsweep: temp[" + str(bi_s) + "]=" + str(temp[bi_s]))
+            #if cuda.blockIdx.x == 0:
+            #    print("After downsweep: temp[" + str(bi_s) + "]=" + str(temp[bi_s]))
 
           d *= 2
         cuda.syncthreads()
 
         # Block E: write results to device memory
-        print ("reduceit about to set scan_ar_[" + str(ai+tb_offset) + "]= " + str(temp[ai_s]) + ", scan_ar_[" + str(bi+tb_offset) + "]=" + str(temp[bi_s]))
+        #print ("reduceit about to set scan_ar_[" + str(ai+tb_offset) + "]= " + str(temp[ai_s]) + ", scan_ar_[" + str(bi+tb_offset) + "]=" + str(temp[bi_s]))
         scan_ar_[ai+tb_offset] = temp[ai_s]
         scan_ar_[bi+tb_offset] = temp[bi_s]
         #print ("reduceit: scan_ar_[" + str(ai+tb_offset) + "]= " + str(scan_ar_[ai+tb_offset]) + ", scan_ar_[" + str(bi+tb_offset) + "]=" + str(scan_ar_[bi+tb_offset]))
@@ -131,16 +131,13 @@ def sum_scans(new_carry_ar_, scan_ar_, scan_ar_sz, carry_ar_, carry_offset):
     thid = cuda.threadIdx.x
     tb_offset = cuda.blockIdx.x*cuda.blockDim.x # threadblock offset
     if cuda.blockIdx.x > 0 and thid+tb_offset < scan_ar_sz:
-        print("In sum_scans: adding carry_ar_[" + str(cuda.blockIdx.x-1+carry_offset) + "]="
-              + str(carry_ar_[cuda.blockIdx.x-1+carry_offset]) + " to scan_ar_[" + str(thid+tb_offset) + "]=" + str(scan_ar_[thid+tb_offset]))
+        #print("In sum_scans: adding carry_ar_[" + str(cuda.blockIdx.x-1+carry_offset) + "]=" + str(carry_ar_[cuda.blockIdx.x-1+carry_offset]) + " to scan_ar_[" + str(thid+tb_offset) + "]=" + str(scan_ar_[thid+tb_offset]))
         new_carry_ar_[thid+tb_offset] = scan_ar_[thid+tb_offset] + carry_ar_[cuda.blockIdx.x-1+carry_offset]
-        print("              to give new_carry_ar_[" + str(thid+tb_offset) + "]=" + str(new_carry_ar_[thid+tb_offset]))
+        #print("              to give new_carry_ar_[" + str(thid+tb_offset) + "]=" + str(new_carry_ar_[thid+tb_offset]))
     elif cuda.blockIdx.x == 0 and thid+tb_offset < scan_ar_sz:
         # This is the first block, so there's no carrying to be done; the new carry array should just contain the existing scan array.
         new_carry_ar_[thid+tb_offset] = scan_ar_[thid+tb_offset]
-        print("In sum_scans (no add): new_carry_ar_[" + str(thid+tb_offset) + "] = scan_ar_[" + str(thid+tb_offset) + "] = " + str(new_carry_ar_[thid+tb_offset]))
-    else:
-        print ("cuda.blockIdx.x=" + str(cuda.blockIdx.x) + "thid+tb_offset=" + str (thid+tb_offset) + " scan_ar_sz=" + str(scan_ar_sz));
+        #print("In sum_scans (no add): new_carry_ar_[" + str(thid+tb_offset) + "] = scan_ar_[" + str(thid+tb_offset) + "] = " + str(new_carry_ar_[thid+tb_offset]))
 
 #
 # Build input data for the test
