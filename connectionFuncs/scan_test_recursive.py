@@ -4,7 +4,7 @@ from numba import cuda, float32, int32
 from operator import gt
 
 @cuda.jit(device=True)
-def __shifted_idx (idx): # Not yet quite right for GPU? Or just incompatible with blocks of size 4? Next up...
+def shifted_idx (idx):
     num_banks = 16 # 16 and 768 works for GTX1070/Compute capability 6.1
     bank_width_int32 = 768
     #max_idx = (bank_width_int32 * num_banks)
@@ -15,7 +15,7 @@ def __shifted_idx (idx): # Not yet quite right for GPU? Or just incompatible wit
 
 # A no-op version of the shifted index function
 @cuda.jit(device=True)
-def shifted_idx (idx):
+def __shifted_idx (idx):
     return idx
 
 # parallel scan for stream compaction (See sect. 39.3
@@ -121,11 +121,11 @@ def sum_scans(new_carry_ar_, scan_ar_, scan_ar_sz, carry_ar_, carry_offset):
 # Build input data for the test
 #
 
-rowlen = 9
+rowlen = 22500
 arraysz = rowlen*rowlen
 
 # Parameters to call reduceit
-threadsperblock = 4 # 128 is 1 Multiprocessor.
+threadsperblock = 128 #4 # 128 is 1 Multiprocessor.
 blockspergrid = math.ceil(arraysz/threadsperblock)
 
 # To pad the arrays out to exact number of blocks
@@ -153,16 +153,16 @@ weight_ar[65] = 1
 weight_ar[77] = 1
 weight_ar[79] = 1
 weight_ar[80] = 1
-#weight_ar[128] = 1
-#weight_ar[129] = 1
-#weight_ar[130] = 1
-#weight_ar[191] = 1
-#weight_ar[192] = 1
-#weight_ar[193] = 1
-#weight_ar[254] = 1
-#weight_ar[255] = 1
-#weight_ar[256] = 1
-#weight_ar[257] = 1
+weight_ar[128] = 1
+weight_ar[129] = 1
+weight_ar[130] = 1
+weight_ar[191] = 1
+weight_ar[192] = 1
+weight_ar[193] = 1
+weight_ar[254] = 1
+weight_ar[255] = 1
+weight_ar[256] = 1
+weight_ar[257] = 1
 
 #weight_ar[3580] = 20
 
@@ -261,7 +261,7 @@ r_scan_ar = d_scan_ar.copy_to_host()
 r_weight_ar = d_weight_ar.copy_to_host()
 
 j = 0
-while j < 82:
+while j < 512:
     print ("weight_ar[" + str(j) + "] = " + str(r_weight_ar[j]) + " ... scan_ar[" + str(j) + "] = " + str(r_scan_ar[j]) + " ... scanf[]=" + str(r_scanf[j]))
     j = j+1
 
