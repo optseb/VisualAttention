@@ -126,7 +126,7 @@ def reduceit(scan_ar_, nonzero_ar_, carry_, n, arraysz):
     # End of reduceit()
 
 # Last job is to add on the carry to each part of scan_ar WHILE AT THE SAME TIME SUMMING WITHIN A BLOCK
-@cuda.jit
+@cuda.jit("void(uint32[:], uint32[:], uint32, uint32[:], uint32)")
 def sum_scans(new_carry_ar_, scan_ar_, scan_ar_sz, carry_ar_, carry_offset):
     thid = cuda.threadIdx.x
     tb_offset = cuda.blockIdx.x*cuda.blockDim.x # threadblock offset
