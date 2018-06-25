@@ -53,6 +53,9 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
   weight_ar =  np.zeros((nfs_sq*nfs_sq,), dtype=np.float32)
   print ("weight_ar shape: " + str(weight_ar.shape))
 
+  # Alternative using a device-only array:
+  #weight_ar = cuda.device_array((nfs_sq*nfs_sq,), dtype=float32)
+
   # Results array to take the non-zero weights from weight_ar.
   #
   # results is n by 4: [src_idx, dst_idx, delay, weight]
@@ -91,7 +94,7 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
 
       # Temporary shared memory for weights
       tmp_w = cuda.shared.array(12288, dtype=float32) # Note - allocating ALL shared memory here.
-      myidx = (cuda.threadIdx.x*cuda.blockDim.y + cuda.threadIdx.x)
+      myidx = (cuda.threadIdx.y*cuda.blockDim.x + cuda.threadIdx.x)
       offsidx = shifted_idx_skipping(myidx)
       tmp_w[offsidx] = float32(0.0)
       tmp_w[offsidx+1] = float32(0.0)
@@ -144,7 +147,7 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
     bank_width_int32 = 768 # would 32 and 384 be ok? I though 32 and
                            # 768 would be ok, as this is 3kB for 32
                            # banks of shared memory.
-    max_idx = (bank_width_int32 * num_banks) // skip_width  # Can't deal with a larger n than this
+    #max_idx = (bank_width_int32 * num_banks) // skip_width  # Can't deal with a larger n than this
     #if bank_width_int32 % skip_width:
     #    return -2
     bank_width_groups = bank_width_int32 // skip_width
@@ -153,17 +156,91 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
     offs_idx = skip_width * ((bank_width_groups * idx_mod_num_banks) + (idx_idiv_num_banks))
     return offs_idx
 
+  @cuda.jit(device=True)
+  def shifted_idx (idx):
+    num_banks = 16 # 16 and 768 works for GTX1070/Compute capability 6.1
+    bank_width_int32 = 768
+    #max_idx = (bank_width_int32 * num_banks)
+    idx_idiv_num_banks = idx // num_banks
+    idx_mod_num_banks = idx % num_banks
+    offs_idx = ((bank_width_int32 * idx_mod_num_banks) + (idx_idiv_num_banks))
+    return offs_idx
+
   # parallel scan for stream compaction (See sect. 39.3 https://developer.nvidia.com/gpugems/GPUGems3/gpugems3_ch39.html)
   @cuda.jit
-  def reduceit(res_ar, weight_ar, res_idx):
-    # FIXME next.
+  def reduceit(scan_ar, weight_ar, n):
+    temp = cuda.shared.array(12288, dtype=float32) # Note - allocating ALL shared memory here.
+    thid = cuda.threadIdx.x
+    tb_offset = cuda.blockIdx.x*cuda.threadDim.x # threadblock offset
+    ai = thid # within one block
+    d = n//2
+    bi = ai + d
+    ai_s = shifted_idx(ai)
+    bi_s = shifted_idx(bi)
+    temp[ai_s] = weight_ar(ai+tb_offset) > 0 ? 1:0
+    temp[bi_s] = weight_ar(bi+tb_offset) > 0 ? 1:0
+
+    offset = 1
+    # Upsweep: Ebuild sum in place up the tree
+    while (d > 0):
+      cuda.syncthreads()
+      if thid < d:
+        # Block B
+        ai = offset*(2*thid+1)-1
+        bi = offset*(2*thid+2)-1
+        ai_s = shifted_idx(ai)
+        bi_s = shifted_idx(bi)
+        temp[bi_s] += temp[ai_s] > 0 ? 1:0 # Here's the sum
+      offset *= 2
+      d >>= 2
+
+    # Block C: clear the last element
+    if (thid == 0):
+      nm1s = shifted_idx(n-1)
+      temp[nm1s] = 0
+
+    # Downsweep: traverse down tree & build scan
+    d = 1
+    while d < n:
+      offset >>= 1
+      cuda.syncthreads()
+      if (thid < d):
+        # Block D
+        ai = offset*(2*thid+1)-1
+        bi = offset*(2*thid+2)-1
+        ai_s = shifted_idx(ai)
+        bi_s = shifted_idx(bi)
+        t = temp[ai_s]
+        temp[ai_s] = temp[bi_s]
+        temp[bi_s] += t
+      d *= 2
     cuda.syncthreads()
 
-  # Now the kernel function is defined, call it
-  threadsperblock = (16,32) # 8 warps to a block; 256 threads to a block. 512 might be optimal?
+    # Block E: write results to device memory
+    # This is the SUM, right? What to do now...
+    res_ar[ai+tb_offset] = temp[ai_s]
+    res_ar[bi+tb_offset] = temp[bi_s]
+    # End
+
+    # Now we made scan array, can write from weight_ar to res_ar in a GPU efficient way using addresses in scan_ar
+
+
+  # Now the kernel function is defined, call it with a 2-D layout of threadblocks
+  threadsperblock = (16,32) # 16 warps to a block; 512 threads
   blockspergrid = (1+(nfs_sq // threadsperblock[0]), 1+(nfs_sq // threadsperblock[1]))
   dowork[blockspergrid, threadsperblock](M_f_start, nfs_sq, src_ar, dst_ar, weight_ar, sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd0p,offsetd1r)
-  reduceit[blockspergrid*threadsperblock](weight_ar, res_ar, res_idx)
+
+  # For the reduce operation, I adopt a 1-D grid of threadblocks
+  threadsperblock = 512
+  blockspergrid = (nfs_sq*nfs_sq) // threadsperblock
+  if ((nfs_sq*nfs_sq) % threadsperblock) > 0:
+    blockspergrid = blockspergrid + 1
+
+  # Allocate device memory to store the final result of the scan.
+  cuda.device_array((1,), dtype=int32)
+
+  # And reduce it down...
+  reduceit[blockspergrid, threadsperblock](weight_ar, res_ar, threadsperblock)
 
 
   # Now get results from device, sort, and return out. Crazy slow.

@@ -76,7 +76,7 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
 #
 
 # Set up some parameters
-rowlen = 50
+rowlen = 150
 sigma_m = 25
 E2 = 2.5
 sigma_0 = 0.3
@@ -101,94 +101,95 @@ result = connectionFunc (srclocs,srclocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,o
 offsetd0p = 4
 offsetd1r = 4
 result2 = connectionFunc (srclocs,srclocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd0p,offsetd1r)
-print "Done computing"
+print ("Done computing")
 
+do_plot = 0
+if do_plot > 0:
+    #
+    # 3) Show weight results for one particular source neuron projecting
+    # out to destination neurons.
+    #
 
-#
-# 3) Show weight results for one particular source neuron projecting
-# out to destination neurons.
-#
+    import math
 
-import math
+    # The source neuron index to look at the connection pattern
+    src_index = 25
+    src_index1 = 1275
+    src_index2 = 2475
 
-# The source neuron index to look at the connection pattern
-src_index = 25
-src_index1 = 1275
-src_index2 = 2475
+    # Extract xs, ys and weights for source-to-destination connection into
+    # these lists:
+    xs = []
+    ys = []
+    ws = []
+    xs1 = []
+    ys1 = []
+    ws1 = []
+    xs2 = []
+    ys2 = []
+    ws2 = []
 
-# Extract xs, ys and weights for source-to-destination connection into
-# these lists:
-xs = []
-ys = []
-ws = []
-xs1 = []
-ys1 = []
-ws1 = []
-xs2 = []
-ys2 = []
-ws2 = []
+    for res in result:
+        if (res[0] == src_index):
+            # In my example, the position x and y come from the
+            # destination index, which is found in res[1]. res[2] contains
+            # the delay (unused here). res[3] contains the weight.
+            xs.append(res[1]%rowlen)
+            ys.append(math.floor(res[1]/rowlen))
+            ws.append(res[3])
+            #print ('Appended ', res[1]%rowlen, math.floor(res[1]/rowlen), res[3])
+        elif (res[0] == src_index1):
+            xs1.append(res[1]%rowlen)
+            ys1.append(math.floor(res[1]/rowlen))
+            ws1.append(res[3])
+        elif (res[0] == src_index2):
+            xs2.append(res[1]%rowlen)
+            ys2.append(math.floor(res[1]/rowlen))
+            ws2.append(res[3])
 
-for res in result:
-    if (res[0] == src_index):
-        # In my example, the position x and y come from the
-        # destination index, which is found in res[1]. res[2] contains
-        # the delay (unused here). res[3] contains the weight.
-        xs.append(res[1]%rowlen)
-        ys.append(math.floor(res[1]/rowlen))
-        ws.append(res[3])
-        #print ('Appended ', res[1]%rowlen, math.floor(res[1]/rowlen), res[3])
-    elif (res[0] == src_index1):
-        xs1.append(res[1]%rowlen)
-        ys1.append(math.floor(res[1]/rowlen))
-        ws1.append(res[3])
-    elif (res[0] == src_index2):
-        xs2.append(res[1]%rowlen)
-        ys2.append(math.floor(res[1]/rowlen))
-        ws2.append(res[3])
+    # Now do a scatter plot of the weights
+    import matplotlib.pyplot as plt
+    from mpl_toolkits.mplot3d import Axes3D
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    ax.scatter(xs,ys,ws)
+    ax.scatter(xs1,ys1,ws1)
+    ax.scatter(xs2,ys2,ws2)
 
-# Now do a scatter plot of the weights
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-fig = plt.figure()
-ax = fig.add_subplot(111, projection='3d')
-ax.scatter(xs,ys,ws)
-ax.scatter(xs1,ys1,ws1)
-ax.scatter(xs2,ys2,ws2)
+    # Extract xs, ys and weights for source-to-destination connection into
+    # these lists:
+    xs = []
+    ys = []
+    ws = []
+    xs1 = []
+    ys1 = []
+    ws1 = []
+    xs2 = []
+    ys2 = []
+    ws2 = []
 
-# Extract xs, ys and weights for source-to-destination connection into
-# these lists:
-xs = []
-ys = []
-ws = []
-xs1 = []
-ys1 = []
-ws1 = []
-xs2 = []
-ys2 = []
-ws2 = []
+    for res in result2:
+        if (res[0] == src_index):
+            # In my example, the position x and y come from the
+            # destination index, which is found in res[1]. res[2] contains
+            # the delay (unused here). res[3] contains the weight.
+            xs.append(res[1]%rowlen)
+            ys.append(math.floor(res[1]/rowlen))
+            ws.append(res[3])
+            #print ('Appended ', res[1]%rowlen, math.floor(res[1]/rowlen), res[3])
+        elif (res[0] == src_index1):
+            xs1.append(res[1]%rowlen)
+            ys1.append(math.floor(res[1]/rowlen))
+            ws1.append(res[3])
+        elif (res[0] == src_index2):
+            xs2.append(res[1]%rowlen)
+            ys2.append(math.floor(res[1]/rowlen))
+            ws2.append(res[3])
 
-for res in result2:
-    if (res[0] == src_index):
-        # In my example, the position x and y come from the
-        # destination index, which is found in res[1]. res[2] contains
-        # the delay (unused here). res[3] contains the weight.
-        xs.append(res[1]%rowlen)
-        ys.append(math.floor(res[1]/rowlen))
-        ws.append(res[3])
-        #print ('Appended ', res[1]%rowlen, math.floor(res[1]/rowlen), res[3])
-    elif (res[0] == src_index1):
-        xs1.append(res[1]%rowlen)
-        ys1.append(math.floor(res[1]/rowlen))
-        ws1.append(res[3])
-    elif (res[0] == src_index2):
-        xs2.append(res[1]%rowlen)
-        ys2.append(math.floor(res[1]/rowlen))
-        ws2.append(res[3])
-
-# Now do a scatter plot of the weights
-fig2 = plt.figure()
-ax2 = fig2.add_subplot(111, projection='3d')
-ax2.scatter(xs,ys,ws)
-ax2.scatter(xs1,ys1,ws1)
-ax2.scatter(xs2,ys2,ws2)
-plt.show()
+    # Now do a scatter plot of the weights
+    fig2 = plt.figure()
+    ax2 = fig2.add_subplot(111, projection='3d')
+    ax2.scatter(xs,ys,ws)
+    ax2.scatter(xs1,ys1,ws1)
+    ax2.scatter(xs2,ys2,ws2)
+    plt.show()
