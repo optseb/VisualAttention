@@ -108,20 +108,23 @@ def reduceit(scan_ar_, nonzero_ar_, carry_, n, arraysz):
                 ai_s = shifted_idx(ai)
                 bi_s = shifted_idx(bi)
                 #if cuda.blockIdx.x == 0:
-                #    print ("ai_s=" + str(ai_s) + " bi_s=" + str(bi_s))
+                #print ("ai_s=" + str(ai_s) + " bi_s=" + str(bi_s))
                 t = temp[ai_s]
+                #print ("Set t to temp[ai_s]=" + str(temp[ai_s]))
                 temp[ai_s] = temp[bi_s]
+                #print ("Set temp[ai_s] to temp[bi_s]=" + str(temp[bi_s]))
                 temp[bi_s] += t
+                #print ("Added t to temp[bi_s] which is now: " + str(temp[bi_s]))
                 #if cuda.blockIdx.x == 0:
-                #    print("After downsweep: temp[" + str(bi_s) + "]=" + str(temp[bi_s]))
+                #print("After downsweep: temp[" + str(bi_s) + "]=" + str(temp[bi_s]))
             d *= 2
         cuda.syncthreads()
 
         # Block E: write results to device memory
-        print ("reduceit about to set scan_ar_[ai=" + str(ai) + "+tb_offset=" + str(tb_offset) + " =" + str(ai+tb_offset) + "] to " + str(temp[ai_s]) + "; scan_ar_[bi=" + str(bi) + "+tboffset =" + str(bi+tb_offset) + "] to " + str(temp[bi_s]))
+        #print ("reduceit about to set scan_ar_[ai=" + str(ai) + "+tb_offset=" + str(tb_offset) + " =" + str(ai+tb_offset) + "] to " + str(temp[ai_s]) + "; scan_ar_[bi=" + str(bi) + "+tboffset =" + str(bi+tb_offset) + "] to " + str(temp[bi_s]))
         scan_ar_[ai+tb_offset] = temp[ai_s]
         scan_ar_[bi+tb_offset] = temp[bi_s]
-        print ("reduceit: scan_ar_[" + str(ai+tb_offset) + "]= " + str(scan_ar_[ai+tb_offset]) + ", scan_ar_[" + str(bi+tb_offset) + "]=" + str(scan_ar_[bi+tb_offset]))
+        #print ("reduceit: scan_ar_[" + str(ai+tb_offset) + "]= " + str(scan_ar_[ai+tb_offset]) + ", scan_ar_[" + str(bi+tb_offset) + "]=" + str(scan_ar_[bi+tb_offset]))
     cuda.syncthreads()
     # End of reduceit()
 
@@ -145,7 +148,7 @@ def sum_scans(new_carry_ar_, scan_ar_, scan_ar_sz, carry_ar_):
 # Build input data for the test
 #
 
-rowlen = 5
+rowlen = 3
 arraysz = rowlen*rowlen
 
 # Parameters to call reduceit
@@ -171,8 +174,10 @@ weight_ar[1] = 1.3
 weight_ar[2] = 1.2
 weight_ar[3] = 0.2
 weight_ar[4] = 0.3
-weight_ar[12] = 1.7
-weight_ar[22] = 1.9
+
+if rowlen > 3:
+    weight_ar[12] = 1.7
+    weight_ar[22] = 1.9
 
 if rowlen == 18:
     weight_ar[33] = 2.3
