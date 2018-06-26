@@ -68,22 +68,22 @@ def reduceit(scan_ar_, nonzero_ar_, carry_, n, arraysz):
         offset = 1
         # Upsweep: Ebuild sum in place up the tree
         while (d > 0):
-          cuda.syncthreads()
-          if thid < d:
-              # Block B
-              ai = offset*(2*thid+1)-1
-              bi = offset*(2*thid+2)-1
-              ai_s = shifted_idx(ai)
-              bi_s = shifted_idx(bi)
-              #if cuda.blockIdx.x == 0:
-              #    print ("In upsweep, d=" + str(d) + ", temp[bi_s:" + str(bi_s) + "]=" + str(temp[bi_s]) + " += temp[ai_s:" + str(ai_s) + "]=" + str(temp[ai_s]))
-              temp[bi_s] += temp[ai_s]
+            cuda.syncthreads()
+            if thid < d:
+                # Block B
+                ai = offset*(2*thid+1)-1
+                bi = offset*(2*thid+2)-1
+                ai_s = shifted_idx(ai)
+                bi_s = shifted_idx(bi)
+                #if cuda.blockIdx.x == 0:
+                #    print ("In upsweep, d=" + str(d) + ", temp[bi_s:" + str(bi_s) + "]=" + str(temp[bi_s]) + " += temp[ai_s:" + str(ai_s) + "]=" + str(temp[ai_s]))
+                temp[bi_s] += temp[ai_s]
 
-              #if cuda.blockIdx.x == 0:
-              #    print ("In upsweep, d=" + str(d) + ", now temp[bi_s:" + str(bi_s) + "]=" + str(temp[bi_s]))
+                #if cuda.blockIdx.x == 0:
+                #    print ("In upsweep, d=" + str(d) + ", now temp[bi_s:" + str(bi_s) + "]=" + str(temp[bi_s]))
 
-          offset *= 2
-          d >>= 1
+            offset *= 2
+            d >>= 1
 
         cuda.syncthreads()
 
