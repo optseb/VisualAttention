@@ -45,25 +45,32 @@ def prenorm(weight_ar_, nonzero_ar_, arraysz):
 #
 # Before calling python scan2_recursive.py
 #
-@cuda.jit
-def reduceit(scan_ar_, nonzero_ar_, carry_, n, arraysz):
+@cuda.jit()
+def reduceit(scan_ar_, nonzero_ar_, carry_, n, arraysz, all_d):
     thid = cuda.threadIdx.x
     tb_offset = cuda.blockIdx.x*cuda.blockDim.x # threadblock offset
     d = n//2
-
     #print ("reduceit: if (thid+tb_offset:" + str(thid+tb_offset) + " < arraysz-d=" + str(arraysz-d) + ")")
+    #print ("thid=" + str(thid))
+    #cuda.atomic.add (all_d, 0, 1) # To debug number of kernel calls
+    cuda.syncthreads()
     # This runs for every element in nonzero_ar_
     if (thid+tb_offset) < (arraysz-d):
 
+        #all_d[thid+tb_offset] = thid+tb_offset
+        #print ("thid=" + str(thid))
+
         temp = cuda.shared.array(12288, dtype=float32) # Note - allocating ALL shared memory here.
         ai = thid # within one block
-        bi = ai + d
+        #bi = ai + d # Why was this ai+d??
+        bi = ai+1 # Is this solution????
         ai_s = shifted_idx(ai)
         bi_s = shifted_idx(bi)
 
         # Summing scheme
         temp[ai_s] = nonzero_ar_[ai+tb_offset]
         temp[bi_s] = nonzero_ar_[bi+tb_offset]
+        #print ("Init temp[ai_s=" + str(ai_s) + "] = " + str(temp[ai_s]) + ", temp[bi_s=" + str(bi_s) + "]= " + str(temp[ai_s]))
 
         offset = 1
         # Upsweep: Ebuild sum in place up the tree
@@ -92,9 +99,11 @@ def reduceit(scan_ar_, nonzero_ar_, carry_, n, arraysz):
             nm1s = shifted_idx(n-1)
             # Carry last number in the block
             carry_[cuda.blockIdx.x] = temp[nm1s];
-            #print("reduceit: clear last element; carry_[" + str(cuda.blockIdx.x) + "] = " + str(temp[nm1s]))
+            #print("reduceit: carry last element; carry_[" + str(cuda.blockIdx.x) + "] = " + str(temp[nm1s]))
             # Zero it
             temp[nm1s] = 0
+
+        cuda.syncthreads()
 
         # Downsweep: traverse down tree & build scan
         d = 1
@@ -121,9 +130,15 @@ def reduceit(scan_ar_, nonzero_ar_, carry_, n, arraysz):
         cuda.syncthreads()
 
         # Block E: write results to device memory
+        #if (ai+tb_offset == 4 or ai+tb_offset == 5 or bi+tb_offset == 4 or bi+tb_offset == 5):
+        #    print ("4or5!")
         #print ("reduceit about to set scan_ar_[ai=" + str(ai) + "+tb_offset=" + str(tb_offset) + " =" + str(ai+tb_offset) + "] to " + str(temp[ai_s]) + "; scan_ar_[bi=" + str(bi) + "+tboffset =" + str(bi+tb_offset) + "] to " + str(temp[bi_s]))
+
+        #cuda.atomic.add (all_d, 1, 1) # To debug number of EFFECTIVE kernel calls
         scan_ar_[ai+tb_offset] = temp[ai_s]
-        scan_ar_[bi+tb_offset] = temp[bi_s]
+        if bi < n:
+            scan_ar_[bi+tb_offset] = temp[bi_s]
+        #if (ai+tb_offset == 4 or ai+tb_offset == 5 or bi+tb_offset == 4 or bi+tb_offset == 5):
         #print ("reduceit: scan_ar_[" + str(ai+tb_offset) + "]= " + str(scan_ar_[ai+tb_offset]) + ", scan_ar_[" + str(bi+tb_offset) + "]=" + str(scan_ar_[bi+tb_offset]))
     cuda.syncthreads()
     # End of reduceit()
@@ -152,7 +167,7 @@ rowlen = 3
 arraysz = rowlen*rowlen
 
 # Parameters to call reduceit
-threadsperblock = 4 # 128 is 1 Multiprocessor.
+threadsperblock = 4 #128 is 1 Multiprocessor.
 blockspergrid = math.ceil(arraysz/threadsperblock)
 
 # To pad the arrays out to exact number of blocks
@@ -160,11 +175,14 @@ if arraysz%threadsperblock:
     arrayszplus = arraysz + threadsperblock - arraysz%threadsperblock
 else:
     arrayszplus = arraysz
+print ("arraysz in exact number of blocks (arrayszplus) is " + str(arrayszplus))
 
 # weight_ar is the input
 weight_ar = np.zeros((arrayszplus,), dtype=np.float32)
 # nonzero_ar is set to 1 for every element for which weight_ar is >0
 nonzero_ar = np.zeros((arrayszplus,), dtype=np.uint32)
+# For debugging on GPU
+all_d_ar = np.zeros((arrayszplus,), dtype=np.uint32)
 # scan_ar is going to hold the result of scanning the input
 scan_ar = np.zeros((arrayszplus,), dtype=np.uint32)
 
@@ -174,13 +192,15 @@ weight_ar[1] = 1.3
 weight_ar[2] = 1.2
 weight_ar[3] = 0.2
 weight_ar[4] = 0.3
+#weight_ar[5] = 0.3
 
 if rowlen > 3:
     weight_ar[12] = 1.7
+if rowlen > 4:
     weight_ar[22] = 1.9
-
-if rowlen == 18:
+if rowlen > 5:
     weight_ar[33] = 2.3
+if rowlen > 17:
     weight_ar[44] = 2.3
     weight_ar[45] = 2.3
     weight_ar[55] = 2.3
@@ -204,11 +224,12 @@ if rowlen == 18:
 # Explicitly copy to device
 d_weight_ar = cuda.to_device (weight_ar)
 d_nonzero_ar = cuda.to_device (nonzero_ar)
+d_all_d_ar = cuda.to_device (all_d_ar)
 d_scan_ar = cuda.to_device (scan_ar)
 
 # scanf_ar is a data structure to hold the final, corrected scan
 scanf_ar = np.zeros((arrayszplus,), dtype=np.uint32)
-d_scanf_ar = cuda.to_device(scanf_ar)
+d_scanf_ar = cuda.to_device (scanf_ar)
 
 # We now have the arrays in d_carrylist, which needs to be scanned, so that it
 # can be added to each block of d_scan_ar. If d_carry is of large
@@ -254,20 +275,20 @@ d_carrylist.append (cuda.to_device(carrylist[-1]))
 # Compute partial scans of the top-level weight_ar and the lower level
 # partial sums
 #
-asz = arrayszplus
 # The first input is the weight array, compute block-wise prefix-scan sums:
-print ("0. asz reset to " + str(asz) + ", scanblocks=" + str(blockspergrid) + ", scanarray length: " + str(len(scan_ar)) + ", carry(out) size: " + str(len(carrylist[0])) )
-prenorm[blockspergrid, threadsperblock](d_weight_ar, d_nonzero_ar, asz)
-reduceit[blockspergrid, threadsperblock](d_scan_ar, d_nonzero_ar, d_carrylist[0], threadsperblock, asz)
+print ("0. scanblocks=" + str(blockspergrid) + ", scanarray length: " + str(len(scan_ar)) + ", carry(out) size: " + str(len(carrylist[0])) )
+prenorm[blockspergrid, threadsperblock](d_weight_ar, d_nonzero_ar, arrayszplus)
+reduceit[blockspergrid, threadsperblock](d_scan_ar, d_nonzero_ar, d_carrylist[0], threadsperblock, arrayszplus, d_all_d_ar)
 
 r_scan_ar = d_scan_ar.copy_to_host()
 r_scanf_ar = d_scanf_ar.copy_to_host()
 r_weight_ar = d_weight_ar.copy_to_host()
 r_nonzero_ar = d_nonzero_ar.copy_to_host()
+r_all_d_ar = d_all_d_ar.copy_to_host()
 print ("Here comes weight_ar etc")
 j = 0
 while j < arraysz:
-    print ("weight_ar[" + str(j) + "] = " + str(r_weight_ar[j]) + "("+str(r_nonzero_ar[j])+") ... scan_ar[" + str(j) + "] = " + str(r_scan_ar[j]) + " ... scanf_ar[]=" + str(r_scanf_ar[j]))
+    print ("weight_ar[" + str(j) + "] = " + str(r_weight_ar[j]) + "("+str(r_nonzero_ar[j])+") ... scan_ar[" + str(j) + "] = " + str(r_scan_ar[j]) + " ... scanf_ar[]=" + str(r_scanf_ar[j]) + " all_d[]:" + str(r_all_d_ar[j]))
     j = j+1
 
 
@@ -290,7 +311,7 @@ j = 0
 while j < len(r_scanlist):
     k = 0
     while k < len(r_scanlist[j]):
-        print ("r_scanlist[j"+str(j)+"][k"+str(k)+"] = " + str(r_scanlist[j][k]))
+        #print ("r_scanlist[j"+str(j)+"][k"+str(k)+"] = " + str(r_scanlist[j][k]))
         k = k+1
     j = j+1
 
@@ -298,26 +319,28 @@ j = 0
 while j < len(r_carrylist):
     k = 0
     while k < len(r_carrylist[j]):
-        print ("j: "+ str(j)+" k: "+ str(k))
-        print ("r_carrylist[j"+str(j)+"][k"+str(k)+"] = " + str(r_carrylist[j][k]))
+        #print ("j: "+ str(j)+" k: "+ str(k))
+        #print ("r_carrylist[j"+str(j)+"][k"+str(k)+"] = " + str(r_carrylist[j][k]))
         k = k+1
     j = j+1
 
 
 print ("SECOND reduceit() call-set")
-asz = math.ceil (asz / threadsperblock)
+asz = math.ceil (arrayszplus / threadsperblock)
 j = 0
 while asz > threadsperblock:
     scanblocks = math.ceil (asz / threadsperblock)
     scanblocks = scanblocks + threadsperblock - scanblocks%threadsperblock
-    reduceit[scanblocks, threadsperblock](d_scanlist[j], d_carrylist[j], d_carrylist[j+1], threadsperblock, len(carrylist[j]))
+    reduceit[scanblocks, threadsperblock](d_scanlist[j], d_carrylist[j], d_carrylist[j+1], threadsperblock, len(carrylist[j]), d_all_d_ar)
     asz = scanblocks
     j = j+1
 # Plus one more iteration:
-print ("Last reduceit call, j=" + str(j))
+print ("Last reduceit call, j=" + str(j) + ", asz = " + str(asz))
 scanblocks = math.ceil (asz / threadsperblock)
-scanblocks = scanblocks + threadsperblock - scanblocks%threadsperblock
-reduceit[scanblocks, threadsperblock](d_scanlist[j], d_carrylist[j], d_carrylist[j+1], threadsperblock, len(carrylist[j]))
+print ("In last call, ceil(asz/threadsperblock) = " + str(scanblocks))
+##scanblocks = scanblocks + threadsperblock - scanblocks%threadsperblock
+print ("In last call, scanblocks = " + str(scanblocks))
+reduceit[scanblocks, threadsperblock](d_scanlist[j], d_carrylist[j], d_carrylist[j+1], threadsperblock, len(carrylist[j]), d_all_d_ar)
 
 print("AFTER SECOND reduceit BEFORE sum_scans, lists are:")
 # Copy scan lists to host
@@ -338,7 +361,7 @@ j = 0
 while j < len(r_scanlist):
     k = 0
     while k < len(r_scanlist[j]):
-        print ("r_scanlist[j"+str(j)+"][k"+str(k)+"] = " + str(r_scanlist[j][k]))
+        #print ("r_scanlist[j"+str(j)+"][k"+str(k)+"] = " + str(r_scanlist[j][k]))
         k = k+1
     j = j+1
 
@@ -346,8 +369,8 @@ j = 0
 while j < len(r_carrylist):
     k = 0
     while k < len(r_carrylist[j]):
-        print ("j: "+ str(j)+" k: "+ str(k))
-        print ("r_carrylist[j"+str(j)+"][k"+str(k)+"] = " + str(r_carrylist[j][k]))
+        #print ("j: "+ str(j)+" k: "+ str(k))
+        #print ("r_carrylist[j"+str(j)+"][k"+str(k)+"] = " + str(r_carrylist[j][k]))
         k = k+1
     j = j+1
 
@@ -403,7 +426,7 @@ j = 0
 while j < len(r_scanlist):
     k = 0
     while k < len(r_scanlist[j]):
-        print ("r_scanlist[j"+str(j)+"][k"+str(k)+"] = " + str(r_scanlist[j][k]))
+        #print ("r_scanlist[j"+str(j)+"][k"+str(k)+"] = " + str(r_scanlist[j][k]))
         k = k+1
     j = j+1
 
@@ -411,8 +434,8 @@ j = 0
 while j < len(r_carrylist):
     k = 0
     while k < len(r_carrylist[j]):
-        print ("j: "+ str(j)+" k: "+ str(k))
-        print ("r_carrylist[j"+str(j)+"][k"+str(k)+"] = " + str(r_carrylist[j][k]))
+        #print ("j: "+ str(j)+" k: "+ str(k))
+        #print ("r_carrylist[j"+str(j)+"][k"+str(k)+"] = " + str(r_carrylist[j][k]))
         k = k+1
     j = j+1
 
