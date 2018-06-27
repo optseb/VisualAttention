@@ -1,7 +1,9 @@
+###############################################################################
 import numpy as np
 from numba import cuda, float32, int32
 
-# Like prefixscan_gpu, but returning the non-zero values from weight_ar
+# Like prefixscan_gpu, but returning the non-zero values from
+# weight_ar in d_result_idx and d_result_val.
 #
 # d_weight_ar - A memory area on the GPU memory containing a sparse
 # matrix of results (floating point, probably)
@@ -20,7 +22,9 @@ from numba import cuda, float32, int32
 # d_result_val - a memory array to hold the result values - the
 # nonzero members of d_weight_ar
 #
-# res_sz - The size of d_result_idx and d_result_val
+# res_sz - The size of d_result_idx and d_result_val. Unused (make
+# sure your d_result* arrays have enough elements to hold all the
+# results you're computing)
 #
 def reduce_nonzero_gpu (d_weight_ar, arraysz, arrayszplus, threadsperblock, d_result_idx, d_result_val, res_sz):
     import math
@@ -264,7 +268,9 @@ def reduce_nonzero_gpu (d_weight_ar, arraysz, arrayszplus, threadsperblock, d_re
     # Finally, in parallel, populate d_result_idx and d_result_val.
     extract_nonzero[blockspergrid, threadsperblock] (d_weight_ar, arraysz, d_scan_ar, d_result_idx, d_result_val)
 
-    return # END prefixscan_gpu()
+    return # END reduce_nonzero_gpu()
+###############################################################################
+
 
 #
 # Example calling of reduce_nonzero_gpu
