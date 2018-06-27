@@ -153,6 +153,15 @@ def reduce_nonzero_gpu (d_weight_ar, arraysz, arrayszplus, threadsperblock, d_re
 
         cuda.syncthreads()
 
+    @cuda.jit
+    def sum_scans_destructively(scan_ar_, scan_ar_sz, carry_ar_):
+        thid = cuda.threadIdx.x
+        tb_offset = cuda.blockIdx.x*cuda.blockDim.x # threadblock offset
+        arr_addr = thid+tb_offset
+
+        if cuda.blockIdx.x > 0 and arr_addr < scan_ar_sz:
+            scan_ar_[arr_addr] = scan_ar_[arr_addr] + carry_ar_[cuda.blockIdx.x]
+
     # Use the scan array in d_scan_ar to compute the
     @cuda.jit
     def extract_nonzero (d_weight_ar, weight_sz, d_scan_ar, d_result_idx, d_result_val):
@@ -180,14 +189,11 @@ def reduce_nonzero_gpu (d_weight_ar, arraysz, arrayszplus, threadsperblock, d_re
     # scan_ar is going to hold the result of scanning the input
     scan_ar = np.zeros((arrayszplus,), dtype=np.uint32)
 
-    # Explicitly copy working data to device
+    # Explicitly copy working data to device (two lots of arraysz data on GPU memory)
+    print ("Allocating " + str(4*arrayszplus) + " bytes on the GPU memory (d_nonzero_ar)")
     d_nonzero_ar = cuda.to_device (nonzero_ar)
+    print ("Allocating " + str(4*arrayszplus) + " bytes on the GPU memory (d_scan_ar)")
     d_scan_ar = cuda.to_device (scan_ar)
-
-    # scanf_ar is a data structure to hold the final, corrected scan -
-    # these will be the indices into d_result_idx and d_result_val
-    scanf_ar = np.zeros((arrayszplus,), dtype=np.uint32)
-    d_scanf_ar = cuda.to_device (scanf_ar)
 
     # Make up a list of carry vectors and allocate device memory
     carrylist = []
@@ -203,12 +209,14 @@ def reduce_nonzero_gpu (d_weight_ar, arraysz, arrayszplus, threadsperblock, d_re
         if carrysz%threadsperblock:
             carrysz = carrysz + threadsperblock - carrysz%threadsperblock
 
+        print ("Allocating " + str(4*carrysz) + " bytes on the GPU memory (carrylist)")
         carrylist.append (np.zeros((carrysz,), dtype=np.float32))
         d_carrylist.append (cuda.to_device(carrylist[-1]))
         asz = math.ceil (asz / threadsperblock)
         scansz = asz
         if scansz%threadsperblock:
             scansz = scansz + threadsperblock - scansz%threadsperblock
+        print ("Allocating " + str(4*scansz) + " bytes on the GPU memory (scanlist)")
         scanlist.append (np.zeros((scansz,), dtype=np.float32))
         d_scanlist.append (cuda.to_device(scanlist[-1]))
 
@@ -248,11 +256,13 @@ def reduce_nonzero_gpu (d_weight_ar, arraysz, arrayszplus, threadsperblock, d_re
         # Now d_carrylist[j-1] has had its carrys added from the lower level
         j = j-1
 
-    # The final sum_scans() call.
-    sum_scans[blockspergrid, threadsperblock](d_scanf_ar, d_scan_ar, arrayszplus, d_carrylist[0])
+    # The final sum_scans() call. Do I really need d_scanf_ar here? Couldn't I sum within d_scan_ar destructively at this point?
+    #sum_scans[blockspergrid, threadsperblock](d_scanf_ar, d_scan_ar, arrayszplus, d_carrylist[0])
+    sum_scans_destructively[blockspergrid, threadsperblock](d_scan_ar, arrayszplus, d_carrylist[0])
+
 
     # Finally, in parallel, populate d_result_idx and d_result_val.
-    extract_nonzero[blockspergrid, threadsperblock] (d_weight_ar, arraysz, d_scanf_ar, d_result_idx, d_result_val)
+    extract_nonzero[blockspergrid, threadsperblock] (d_weight_ar, arraysz, d_scan_ar, d_result_idx, d_result_val)
 
     return # END prefixscan_gpu()
 
@@ -260,7 +270,13 @@ def reduce_nonzero_gpu (d_weight_ar, arraysz, arrayszplus, threadsperblock, d_re
 # Example calling of reduce_nonzero_gpu
 #
 
-rowlen = 150
+#rowlen =  26287 # 26287 rowlen uses up 8335607808 bytes of GPU
+                # RAM. 1070 has 8502247424 bytes. The difference is
+                # 166639616 bytes (166 MB) which must be required by
+                # the code, and other variables.
+
+rowlen = 162*162 # The max possible number that can be squared for rowlen.
+
 threadsperblock = 128 # 128 is 1 Multiprocessor.
 
 arraysz = rowlen*rowlen
@@ -310,7 +326,8 @@ if rowlen > 17:
 if rowlen > 149:
     weight_ar[22486] = 2.54
 
-# Copy to GPU memory:
+# Copy to GPU memory: (one lot of arraysz plus floats)
+print ("Allocating " + str(4*arrayszplus) + " bytes on the GPU memory (d_weight_ar)")
 d_weight_ar = cuda.to_device (weight_ar)
 
 # Set up result arrays
