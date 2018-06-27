@@ -4,7 +4,7 @@ from numba import cuda, float32, int32
 from operator import gt
 
 @cuda.jit(device=True)
-def __shifted_idx (idx):
+def shifted_idx (idx):
     num_banks = 16 # 16 and 768 works for GTX1070/Compute capability 6.1
     bank_width_int32 = 768
     # max_idx = (bank_width_int32 * num_banks)
@@ -15,7 +15,7 @@ def __shifted_idx (idx):
 
 # A no-op version of the shifted index function
 @cuda.jit(device=True)
-def shifted_idx (idx):
+def __shifted_idx (idx):
     return idx
 
 # Prenormalise, so that the scan algo works. That means any weight
@@ -62,8 +62,7 @@ def reduceit(scan_ar_, nonzero_ar_, carry_, n, arraysz, all_d):
 
         temp = cuda.shared.array(12288, dtype=float32) # Note - allocating ALL shared memory here.
         ai = thid # within one block
-        #bi = ai + d # Why was this ai+d??
-        bi = ai+1 # Is this solution????
+        bi = ai + d # ai and bi are well separated across the shared memory
         ai_s = shifted_idx(ai)
         bi_s = shifted_idx(bi)
 
@@ -163,11 +162,11 @@ def sum_scans(new_carry_ar_, scan_ar_, scan_ar_sz, carry_ar_):
 # Build input data for the test
 #
 
-rowlen = 3
+rowlen = 18
 arraysz = rowlen*rowlen
 
 # Parameters to call reduceit
-threadsperblock = 4 #128 is 1 Multiprocessor.
+threadsperblock = 128 # 128 is 1 Multiprocessor.
 blockspergrid = math.ceil(arraysz/threadsperblock)
 
 # To pad the arrays out to exact number of blocks
@@ -338,8 +337,11 @@ while asz > threadsperblock:
 print ("Last reduceit call, j=" + str(j) + ", asz = " + str(asz))
 scanblocks = math.ceil (asz / threadsperblock)
 print ("In last call, ceil(asz/threadsperblock) = " + str(scanblocks))
-##scanblocks = scanblocks + threadsperblock - scanblocks%threadsperblock
+scanblocks = scanblocks + threadsperblock - scanblocks%threadsperblock
 print ("In last call, scanblocks = " + str(scanblocks))
+print ("In last call, d_carrylist[j+1] has length " + str(len(carrylist[j+1])))
+print ("In last call, d_carrylist[j] has length " + str(len(carrylist[j])))
+print ("In last call, d_scanlist[j] (the result) has length " + str(len(scanlist[j])))
 reduceit[scanblocks, threadsperblock](d_scanlist[j], d_carrylist[j], d_carrylist[j+1], threadsperblock, len(carrylist[j]), d_all_d_ar)
 
 print("AFTER SECOND reduceit BEFORE sum_scans, lists are:")
