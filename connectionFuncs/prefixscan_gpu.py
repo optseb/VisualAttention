@@ -50,7 +50,6 @@ def prefixscan_gpu(d_weight_ar, d_scanf_ar, arraysz, arrayszplus, threadsperbloc
         tb_offset = cuda.blockIdx.x*cuda.blockDim.x # threadblock offset
         d = n//2
 
-
         # This runs for every element in nonzero_ar_
         if (thid+tb_offset) < (arraysz-d):
 
@@ -88,7 +87,7 @@ def prefixscan_gpu(d_weight_ar, d_scanf_ar, arraysz, arrayszplus, threadsperbloc
                 carry_[cuda.blockIdx.x] = temp[nm1s];
                 temp[nm1s] = 0
 
-            cuda.syncthreads()
+            #cuda.syncthreads()
 
             # Downsweep: traverse down tree & build scan
             d = 1
@@ -223,7 +222,7 @@ def prefixscan_gpu(d_weight_ar, d_scanf_ar, arraysz, arrayszplus, threadsperbloc
 # Example calling of prefixscan_gpu
 #
 
-rowlen = 150*150
+rowlen = 150
 threadsperblock = 128 # 128 is 1 Multiprocessor.
 
 arraysz = rowlen*rowlen
@@ -288,7 +287,7 @@ r_weight_ar = d_weight_ar.copy_to_host()
 r_scanf_ar = d_scanf_ar.copy_to_host()
 
 # Print result
-#j = 0
-#while j < arraysz:
-#    print ("weight_ar[" + str(j) + "] = " + str(r_weight_ar[j]) + " ... scanf_ar[]=" + str(r_scanf_ar[j]))
-#    j = j+1
+j = 0
+while j < arraysz:
+    print ("weight_ar[" + str(j) + "] = " + str(r_weight_ar[j]) + " ... scanf_ar[]=" + str(r_scanf_ar[j]))
+    j = j+1
