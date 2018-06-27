@@ -76,7 +76,7 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
 #
 
 # Set up some parameters
-rowlen = 150
+rowlen = 50
 sigma_m = 25
 E2 = 2.5
 sigma_0 = 0.3
@@ -103,7 +103,7 @@ offsetd1r = 4
 result2 = connectionFunc (srclocs,srclocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd0p,offsetd1r)
 print ("Done computing")
 
-do_plot = 0
+do_plot = 1
 if do_plot > 0:
     #
     # 3) Show weight results for one particular source neuron projecting
