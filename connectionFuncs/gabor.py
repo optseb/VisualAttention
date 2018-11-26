@@ -102,7 +102,7 @@ for i in range(0, rowlen):
 
 # Call the connectionFunc to generate result
 result = connectionFunc (srclocs, srclocs, sigma_g, gain_g, lambda_s, gain_s, dir_s, wco, roi)
-print "Done computing"
+print ("Done computing")
 
 
 #
