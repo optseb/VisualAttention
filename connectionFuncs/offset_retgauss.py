@@ -37,6 +37,7 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
   import math
 
   M_f_start=nfs/(E2*math.log((fovshift/(2*E2))+1))
+  print('M_f_start: {0:f}, fovshift:{1}, E2:{2}, nfs:{3}'.format(M_f_start, fovshift, E2, nfs))
 
   i_src = 0
   out = []
@@ -47,11 +48,12 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
 
     # Set some of M_f to 1 to ensure the fan-out starts at around the edge of the foveal region.
     if (1+srcloc[1]) < fovshift:
+      print ('reset M_f to M_f_start because 1+srcloc[1] (1+{0:f}) < fovshift ({1:f})'.format(srcloc[1], fovshift))
       M_f = M_f_start
 
     _sigma = (sigma_m/M_f) - (sigma_m/M_f_start) + sigma_0 # as function of r, aka srcloc[1]. M_f is the function of r.
     three_sigma = 3 * _sigma
-
+    print ('sigma_m: {0:f}, M_f:{1:f}. M_f_start:{2:f}. sigma_0: {3:f} _sigma: {4:f} three_sigma: {5:f}'.format(sigma_m, M_f, M_f_start, sigma_0, _sigma, three_sigma))
     for dstloc in dstlocs:
 
       # in-xy-plane distance (ignore srcloc[2]/dstdoc[2])
@@ -82,7 +84,7 @@ E2 = 2.5
 sigma_0 = 0.3
 normpower = 0
 fovshift = 4
-nfs = 50
+nfs = 10 # norm 50
 W_cut = 0.001
 
 offsetd0p = 0
