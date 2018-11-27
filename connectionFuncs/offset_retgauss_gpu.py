@@ -13,6 +13,8 @@
 #PARNAME=offsetd1r      #LOC=4,2
 #HASWEIGHT
 
+from numba import cuda, float32, int32
+
 # Compute a widening Gaussian connection function for a retinotopic
 # space, to maintain a constant Gaussian width in Cartesian
 # space. This is much like the WideningGaussian connection function,
@@ -36,8 +38,49 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
 
     import math
     import numpy as np
-    from numba import cuda, float32, int32
     from operator import gt
+
+    # Shifts index to avoid bank conflicts (on GTX 1070 or GTX 1080)
+    @cuda.jit(device=True)
+    def shifted_idx2 (thread_idx_times_memorywidth):
+        #num_banks = 32
+        # How many int32 memory locations being used in each thread:
+        memorywidth = 3 # 12//4
+        # The width of a bank in int32s:
+        bank_width_int32 = 192 # 768//4
+        #print ('memorywidth: {0} (in int32s), bank_width_int32 {1}'.format(memorywidth, bank_width_int32))
+        idx_idiv_memwidth = thread_idx_times_memorywidth // memorywidth
+        idx_mod_memwidth = thread_idx_times_memorywidth % memorywidth
+        offs_idx = ((bank_width_int32 * idx_idiv_memwidth) + (idx_mod_memwidth))
+        return offs_idx
+
+    @cuda.jit(device=True)
+    def shifted_idx3 (thread_idx):
+        num_banks = 32
+        # How many int32 memory locations being used in each thread:
+        memorywidth = 3 # 12//4
+        # The width of a bank in int32s:
+        bank_width_int32 = 192 # 768//4
+        bankwidth = 6144 # bank_width_int32 * num_banks
+
+        offs_idx = (bank_width_int32 * thread_idx)
+        idx_idiv_bw = offs_idx // bankwidth
+        idx_mod_bw = offs_idx % bankwidth
+        offs_idx = idx_mod_bw + idx_idiv_bw * memorywidth
+
+        return offs_idx
+
+
+    # Shifts index to avoid bank conflicts (on GTX1070)
+    @cuda.jit(device=True)
+    def shifted_idx (idx):
+        num_banks = 16 # 16 and 768 works for GTX1070/Compute capability 6.1; makes 48 KB of shared memory. GTX 1080 May have 96 KB; thus double but it's still CC 6.1.
+        bank_width_int32 = 768
+        # max_idx = (bank_width_int32 * num_banks)
+        idx_idiv_num_banks = idx // num_banks
+        idx_mod_num_banks = idx % num_banks
+        offs_idx = ((bank_width_int32 * idx_mod_num_banks) + (idx_idiv_num_banks))
+        return offs_idx
 
     ### GPU SCAN CODE GOES HERE
     ###############################################################################
@@ -68,17 +111,6 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
     def reduce_nonzero_gpu (d_weight_ar, arraysz, arrayszplus, threadsperblock, d_result_idx, d_result_val, res_sz):
         import math
         from operator import gt
-
-        # Shifts index to avoid bank conflicts (on GTX1070)
-        @cuda.jit(device=True)
-        def shifted_idx (idx):
-            num_banks = 16 # 16 and 768 works for GTX1070/Compute capability 6.1
-            bank_width_int32 = 768
-            # max_idx = (bank_width_int32 * num_banks)
-            idx_idiv_num_banks = idx // num_banks
-            idx_mod_num_banks = idx % num_banks
-            offs_idx = ((bank_width_int32 * idx_mod_num_banks) + (idx_idiv_num_banks))
-            return offs_idx
 
         # Detect non-zero values in weight_ar_. Update each element of the
         # identically shaped nonzero_ar_ to hold 1 for non-zero values in
@@ -213,18 +245,37 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
                 d_result_idx[d_scan_ar[thid]] = thid
                 d_result_val[d_scan_ar[thid]] = d_weight_ar[thid]
 
+
+        # END of kernel definitions
+
+        # reduce_nonzero_gpu code proper starts:
+
+        print ('threadsperblock: {0}'.format(threadsperblock))
+        print ('arrayszplus: {0}'.format(arrayszplus))
+        print ('arraysz: {0}'.format(arraysz))
+
         #
         # Build input data for the test
         #
-        arraysz = rowlen*rowlen
+        arraysz1 = rowlen*rowlen # uh oh, this CHANGES the size of arraysz, which was already set.
 
-        blockspergrid = math.ceil(arraysz/threadsperblock)
+        blockspergrid = math.ceil(arraysz1/threadsperblock)
+        print ('blockspergrid: {0}'.format(blockspergrid))
 
         # To pad the arrays out to exact number of blocks
-        if arraysz%threadsperblock:
-            arrayszplus = arraysz + threadsperblock - arraysz%threadsperblock
+        if arraysz1%threadsperblock:
+            amod = arraysz1%threadsperblock
+            print ('--\namod: {0}'.format(amod))
+            print ('arraysz1: {0}'.format(arraysz1))
+            print ('threadsperblock: {0}'.format(threadsperblock))
+            arrayszplus = arraysz1 + threadsperblock - amod
+            print ('arrayszplus: {0}'.format(arrayszplus))
         else:
-            arrayszplus = arraysz
+            arrayszplus = arraysz1
+        print ('arrayszplus: {0}'.format(arrayszplus))
+
+        if arrayszplus <= threadsperblock:
+            print ('WARNING: Make threadsperblock > arrayszplus')
 
         # nonzero_ar is set to 1 for every element for which weight_ar is >0
         nonzero_ar = np.zeros((arrayszplus,), dtype=np.uint32)
@@ -232,7 +283,7 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
         # scan_ar is going to hold the result of scanning the input
         scan_ar = np.zeros((arrayszplus,), dtype=np.uint32)
 
-        # Explicitly copy working data to device (two lots of arraysz data on GPU memory)
+        # Explicitly copy working data to device (two lots of arraysz1 data on GPU memory)
         print ("Allocating " + str(4*arrayszplus) + " bytes on the GPU memory (d_nonzero_ar)")
         d_nonzero_ar = cuda.to_device (nonzero_ar)
         print ("Allocating " + str(4*arrayszplus) + " bytes on the GPU memory (d_scan_ar)")
@@ -244,7 +295,8 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
         # And containers for the scan
         scanlist = []
         d_scanlist = []
-        asz = arraysz
+        asz = arraysz1
+        print ('asz: {0} threadsperblock: {1}'.format(asz, threadsperblock))
         while asz > threadsperblock:
 
             carrysz = math.ceil (asz / threadsperblock)
@@ -277,6 +329,7 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
 
         asz = math.ceil (arrayszplus / threadsperblock)
         j = 0
+        print ('asz: {0} threadsperblock: {1}'.format(asz, threadsperblock))
         while asz > threadsperblock:
             scanblocks = math.ceil (asz / threadsperblock)
             scanblocks = scanblocks + threadsperblock - scanblocks%threadsperblock
@@ -286,6 +339,7 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
         # Plus one more iteration:
         scanblocks = math.ceil (asz / threadsperblock)
         scanblocks = scanblocks + threadsperblock - scanblocks%threadsperblock
+        print ('scanblock: {0} threadsperblock: {1}, j is {2}'.format(scanblocks, threadsperblock, j))
         one_block_scan[scanblocks, threadsperblock](d_scanlist[j], d_carrylist[j], d_carrylist[j+1], threadsperblock, len(carrylist[j]))
 
         #
@@ -293,6 +347,7 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
         #
         ns = len(scanlist)
         j = ns
+        print ('j starts at {0}'.format(j))
         while j > 0:
             sumblocks = math.ceil(len(scanlist[j-1])/threadsperblock)
             sum_scans[sumblocks, threadsperblock](d_carrylist[j-1], d_scanlist[j-1], len(scanlist[j-1]), d_carrylist[j])
@@ -303,80 +358,111 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
         #sum_scans[blockspergrid, threadsperblock](d_scanf_ar, d_scan_ar, arrayszplus, d_carrylist[0])
         sum_scans_destructively[blockspergrid, threadsperblock](d_scan_ar, arrayszplus, d_carrylist[0])
 
-
         # Finally, in parallel, populate d_result_idx and d_result_val.
-        extract_nonzero[blockspergrid, threadsperblock] (d_weight_ar, arraysz, d_scan_ar, d_result_idx, d_result_val)
+        extract_nonzero[blockspergrid, threadsperblock] (d_weight_ar, arraysz1, d_scan_ar, d_result_idx, d_result_val)
 
         return # END reduce_nonzero_gpu()
     ###############################################################################
     ### GPU SCAN CODE TO HERE
 
     # Shifts index to avoid bank conflicts (on GTX1070)
+    #@cuda.jit(device=True)
+    #def shifted_idx_dup (idx):
+    #    num_banks = 16 # 16 and 768 works for GTX1070/Compute capability 6.1
+    #    bank_width_int32 = 768
+    #    # max_idx = (bank_width_int32 * num_banks)
+    #    idx_idiv_num_banks = idx // num_banks
+    #    idx_mod_num_banks = idx % num_banks
+    #    offs_idx = ((bank_width_int32 * idx_mod_num_banks) + (idx_idiv_num_banks)) # ?!
+    #    return offs_idx
+
+    # Non-shifting version
     @cuda.jit(device=True)
-    def shifted_idx_dup (idx):
-        num_banks = 16 # 16 and 768 works for GTX1070/Compute capability 6.1
-        bank_width_int32 = 768
-        # max_idx = (bank_width_int32 * num_banks)
-        idx_idiv_num_banks = idx // num_banks
-        idx_mod_num_banks = idx % num_banks
-        offs_idx = ((bank_width_int32 * idx_mod_num_banks) + (idx_idiv_num_banks))
-        return offs_idx
+    def shifted_idx_noop (idx):
+        return idx
 
     ### CONNECTION FUNCTION-COMPUTING CODE HERE
-    @cuda.jit#("void(float32, int32, float32[:,:], float32[:,:], float32[:], float32,float32,float32,float32,float32,float32,int32,int32)")
-    def dowork (M_f_start, nfs_sq, src_ar, dst_ar, weight_ar, sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd0p,offsetd1r):
+    #
+    @cuda.jit("void(float32, int32, float32[:,:], float32[:,:], float32[:], float32, float32,float32, float32,  float32, float32, int32,     int32)")
+    def dowork (M_f_start,  nfs_sq, src_ar,       dst_ar,       weight_ar,  sigma_m, E2,     sigma_0, fovshift, nfs,     W_cut,   offsetd0p, offsetd1r):
         # Work out i_src and i_dst based on the 2-D thread index
         i_src, i_dst = cuda.grid(2)
+        ##print ('i_src: {0}, i_dst: {1}'.format(i_src, i_dst))
+
         if i_src < nfs_sq and i_dst < nfs_sq:
 
             # Temporary shared memory for weights
-            tmp_w = cuda.shared.array(12288, dtype=float32) # Note - allocating ALL shared memory here.
+            tmp_w = cuda.shared.array(24576, dtype=float32) # Note - allocating ALL shared memory here.
+            #print ('cuda.threadIdx.y: {0} cuda.blockDim.x: {1} cuda.threadIdx.x: {2}'.format(cuda.threadIdx.y, cuda.blockDim.x, cuda.threadIdx.x))
             myidx = (cuda.threadIdx.y*cuda.blockDim.x + cuda.threadIdx.x)
-            offsidx = shifted_idx_dup (myidx)
+            offsidx = shifted_idx3 (myidx)
+            #print('myidx: {0}, shifted: {1}'.format(myidx, offsidx))
             tmp_w[offsidx] = float32(0.0)
             tmp_w[offsidx+1] = float32(0.0)
             tmp_w[offsidx+2] = float32(0.0)
             cuda.syncthreads()
+            #print ('After syncthreads: tmp_w[0]:{0} [1]:{1} [2]:{2}'.format(tmp_w[0], tmp_w[1], tmp_w[2]))
 
             # Compute the location of src_ar, this defines what sigma will be. As r (as opp. to phi) increases, the sigma should increase.
-            M_f = nfs/(E2*math.log(((1+src_ar[i_src,1])/(2*E2))+1))
+            M_f = float32(nfs)/(E2*math.log(((1+src_ar[i_src,1])/(2*E2))+1))
 
             # Set some of M_f to 1 to ensure the fan-out starts at around the edge of the foveal region.
             if (1+src_ar[i_src,1]) < fovshift:
+                #print ('reset M_f to M_f_start because 1+src_ar[i_src={2},1] (1+{0:f}) < fovshift ({1:f})'.format(src_ar[i_src,1], fovshift, i_src))
                 M_f = M_f_start
 
             # Compute modified sigma and 3 times this value
             _sigma = (sigma_m/M_f) - (sigma_m/M_f_start) + sigma_0 # as function of r, aka src_ar[1]. M_f is the function of r.
-            three_sigma = 3 * _sigma
+            three_sigma = float32(3.0) * _sigma
+            #print ('i_src: {4} i_dst: {5}. src_ar: ({0:f},{1:f}) dst_ar: ({2:f},{3:f})'.format(src_ar[i_src,0], src_ar[i_src,1], dst_ar[i_dst,0], dst_ar[i_dst,1], i_src, i_dst))
+            #if M_f != M_f_start:
+                #print ('sigma_m: {0:f}, M_f:{1:f}. M_f_start:{2:f}. sigma_0: {3:f} _sigma: {4:f} three_sigma: {5:f}'.format(sigma_m, M_f, M_f_start, sigma_0, _sigma, three_sigma))
+            # compare this from gpu:
+            # sigma_m: 25.000000, M_f:6.805190. M_f_start:6.805190. sigma_0: 0.300000 _sigma: 0.300000 three_sigma: 0.900000
+            # with this from cpu:
+            # sigma_m: 25.000000, M_f:5.770780. M_f_start:6.805190. sigma_0: 0.300000 _sigma: 0.958503 three_sigma: 2.875510
 
             # in-xy-plane distance (ignore src_ar[2]/dstdoc[2])
             xd = (src_ar[i_src,0] - dst_ar[i_dst,0] + offsetd0p)
             yd = (src_ar[i_src,1] - dst_ar[i_dst,1] + offsetd1r)
             if abs(xd) < three_sigma and abs(yd) < three_sigma:
+                ##print('(abs(xd) abs({0:f}) < three_sigma {1:f} and abs(yd) abs({2:f}) < three_sigma)'.format(xd, yd, three_sigma))
                 dist = math.sqrt(math.pow(xd,2) + math.pow(yd,2))
                 gauss = math.exp(-0.5*math.pow(dist/_sigma,2))
+                ##print ('i_src: {0} i_dst: {1} gauss: {2}'.format(i_src, i_dst, gauss))
                 if gauss > W_cut:
                     # Write result into weight_ar
+                    ##print('gauss {0:f} > W_cut {1:f} - WRITE RESULTS.'.format(gauss, W_cut))
                     tmp_w[offsidx] = float32(gauss)
                     tmp_w[offsidx+1] = float32(i_src)
                     tmp_w[offsidx+2] = float32(i_dst)
+                    ##print('tmp_w[{0}] = {1:f}, tmp_w[{2}] = {3:f}, tmp_w[{4}] = {5:f}'.format(offsidx, tmp_w[offsidx], offsidx+1, tmp_w[offsidx+1], offsidx+2, tmp_w[offsidx+2]))
 
             # Sync threads, then access device memory with any results
             cuda.syncthreads()
+            ##print ('After set tmp_w (myidx={6}): tmp_w[{0}]:{1:f} [{2}]:{3:f} [{4}]:{5:f}'.format(offsidx, tmp_w[offsidx+0], offsidx+1, tmp_w[offsidx+1], offsidx+2, tmp_w[offsidx+2], myidx))
             if cuda.threadIdx.x == 0 and cuda.threadIdx.y == 0:
+                tpb = cuda.blockDim.x * cuda.blockDim.y
+                ##print ('tpb = {0}. tmp_w[0]:{1} [1]:{2} [2]:{3} [3]:{4}'.format(tpb, tmp_w[0], tmp_w[1], tmp_w[2], tmp_w[3]))
                 # Write data from tmp_w to res_ar, but only in ONE thread from the threadblock. Should avoid racing.
-                for idx in range(0,512):
-                    offsidx = shifted_idx_dup (idx)
-                    theweight = tmp_w[offsidx]
+                for idx in range(0,tpb): # 512 was hard coded here; changed it for tpb
+                    offsidx2 = shifted_idx3 (idx)
+                    #print('myidx: {0}, idx: {1}, shifted: {2}'.format(myidx, idx, offsidx2))
+                    theweight = tmp_w[offsidx2] # weight should be the first one, so no +1 or +2
                     #if gt(theweight, W_cut): # Testing makes no difference to speed
                     # Add to weight_ar
-                    weight_idx = int32(tmp_w[offsidx+1])*nfs_sq + int32(tmp_w[offsidx+2])
+                    weight_idx = int32(tmp_w[offsidx2+1])*nfs_sq + int32(tmp_w[offsidx2+2])
+                    ##if (theweight > 0.0):
+                        ##print ('Set weight_ar[{0}]={1}'.format(weight_idx, theweight))
                     weight_ar[weight_idx] = theweight
+                    if weight_idx > 0:
+                        print ('weight_ar[{0}] = {1:f}'.format(weight_idx, theweight))
 
         return # end dowork()
 
     # Compute once only
     M_f_start=nfs/(E2*math.log((fovshift/(2*E2))+1))
+    print('M_f_start: {0:f}'.format(M_f_start))
     nfs_sq = nfs*nfs
 
     # Copy srclocs and dstlocs to device memory before starting
@@ -389,13 +475,16 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
 
     # COMPUTE WEIGHTS. Call function to compute weights in d_weight_ar
     threadsperblock = (16,32) # 16 warps to a block; 512 threads
+    #threadsperblock = (16,2) # 16 warps to a block; 512 threads
+    print ('threadsperblock: {0}'.format(threadsperblock))
     blockspergrid = (1+(nfs_sq // threadsperblock[0]), 1+(nfs_sq // threadsperblock[1]))
-    print ("dowork...");
-    dowork[blockspergrid, threadsperblock](M_f_start, nfs_sq, src_ar, dst_ar, d_weight_ar, sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd0p,offsetd1r)
-    print ("done work");
+    print ('blockspergrid: {0}'.format(blockspergrid)) # 157 by 79. Gives 2500 by 2500 computations - that's each of 2500 inputs to each of 2500 outs
+    print ("compute weights...");
+    dowork[blockspergrid, threadsperblock](M_f_start, nfs_sq, src_ar, dst_ar, d_weight_ar, sigma_m,E2, sigma_0, fovshift, nfs, W_cut, offsetd0p, offsetd1r)
+    print ("computed weights");
 
     # EXTRACT NONZERO WEIGHTS. For the reduce operation, I adopt a 1-D grid of threadblocks
-    threadsperblock = 512
+    threadsperblock = 64
     blockspergrid = math.ceil(weight_sz/threadsperblock)
     if weight_sz%threadsperblock:
         weight_sz_plus = weight_sz + threadsperblock - weight_sz%threadsperblock
@@ -403,14 +492,15 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
         weight_sz_plus = weight_sz
 
     # Allocate device memory for the reduce_nonzero_gpu result
-    out_sz = 2400 # 2400 enough for rowlen 50
+    out_sz = rowlen*rowlen # 2400 # 2400 enough for rowlen 50. Can I compute this from rowlen??
     d_result_idx = cuda.device_array((out_sz,), dtype=np.uint32)
     d_result_val = cuda.device_array((out_sz,), dtype=np.float32)
 
     # Reduce it down
     dummy = 0
+    print ("reduce down to just the non-zero weights")
     reduce_nonzero_gpu(d_weight_ar, weight_sz, weight_sz_plus, threadsperblock, d_result_idx, d_result_val, dummy)
-
+    print ("done reduce down")
     r_result_idx = d_result_idx.copy_to_host()
     r_result_val = d_result_val.copy_to_host()
 
@@ -444,16 +534,16 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
 #
 
 # Set up some parameters
-rowlen = 50
-sigma_m = 35 # was 25
+rowlen = 10
+sigma_m = 25.0
 E2 = 2.5
 sigma_0 = 0.3
 normpower = 0
 fovshift = 4
 W_cut = 0.001
 
-offsetd0p = 0
-offsetd1r = 0
+offsetd0p = 4
+offsetd1r = 4
 
 # Containers for source/destination locations
 srclocs = []
@@ -477,9 +567,9 @@ if show_graphs>0:
     import math
 
     # The source neuron index to look at the connection pattern
-    src_index = 325
-    src_index1 = 1275
-    src_index2 = 1475
+    src_index = 25 # 325
+    src_index1 = 58 # 1275
+    src_index2 = 72 # 1475
 
     # Extract xs, ys and weights for source-to-destination connection into
     # these lists:
@@ -494,6 +584,7 @@ if show_graphs>0:
     ws2 = []
 
     for res in result:
+        print ('res: {0}'.format(res))
         if (res[0] == src_index):
             # In my example, the position x and y come from the
             # destination index, which is found in res[1]. res[2] contains
