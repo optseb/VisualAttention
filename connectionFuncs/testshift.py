@@ -47,12 +47,12 @@ print(cuda.gpus)
 #
 @cuda.jit(device=True)
 def shifted_idx3 (thread_idx):
-    num_banks = 32
     # How many int32 memory locations being used in each thread:
     memorywidth = 3 # 12//4
     # The width of a bank in int32s:
     bank_width_int32 = 192 # 768//4
-    bankwidth = 6144 # bank_width_int32 * num_banks
+    #num_banks = 16
+    bankwidth = 3072 # bank_width_int32 * num_banks
 
     offs_idx = (bank_width_int32 * thread_idx)
     idx_idiv_bw = offs_idx // bankwidth
