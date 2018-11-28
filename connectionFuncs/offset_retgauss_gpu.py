@@ -40,37 +40,6 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
     import numpy as np
     from operator import gt
 
-    # Shifts index to avoid bank conflicts (on GTX 1070 or GTX 1080)
-    @cuda.jit(device=True)
-    def shifted_idx2 (thread_idx_times_memorywidth):
-        #num_banks = 32
-        # How many int32 memory locations being used in each thread:
-        memorywidth = 3 # 12//4
-        # The width of a bank in int32s:
-        bank_width_int32 = 192 # 768//4
-        #print ('memorywidth: {0} (in int32s), bank_width_int32 {1}'.format(memorywidth, bank_width_int32))
-        idx_idiv_memwidth = thread_idx_times_memorywidth // memorywidth
-        idx_mod_memwidth = thread_idx_times_memorywidth % memorywidth
-        offs_idx = ((bank_width_int32 * idx_idiv_memwidth) + (idx_mod_memwidth))
-        return offs_idx
-
-    @cuda.jit(device=True)
-    def shifted_idx3 (thread_idx):
-        num_banks = 32
-        # How many int32 memory locations being used in each thread:
-        memorywidth = 3 # 12//4
-        # The width of a bank in int32s:
-        bank_width_int32 = 192 # 768//4
-        bankwidth = 6144 # bank_width_int32 * num_banks
-
-        offs_idx = (bank_width_int32 * thread_idx)
-        idx_idiv_bw = offs_idx // bankwidth
-        idx_mod_bw = offs_idx % bankwidth
-        offs_idx = idx_mod_bw + idx_idiv_bw * memorywidth
-
-        return offs_idx
-
-
     # Shifts index to avoid bank conflicts (on GTX1070)
     @cuda.jit(device=True)
     def shifted_idx (idx):
@@ -80,6 +49,22 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
         idx_idiv_num_banks = idx // num_banks
         idx_mod_num_banks = idx % num_banks
         offs_idx = ((bank_width_int32 * idx_mod_num_banks) + (idx_idiv_num_banks))
+        return offs_idx
+
+    @cuda.jit(device=True)
+    def shifted_idx3 (thread_idx):
+        # How many int32 memory locations being used in each thread:
+        memorywidth = 3 # 12//4
+        # The width of a bank in int32s:
+        bank_width_int32 = 192 # 768//4
+        #num_banks = 16
+        bankwidth = 3072 # bank_width_int32 * num_banks
+
+        offs_idx = (bank_width_int32 * thread_idx)
+        idx_idiv_bw = offs_idx // bankwidth
+        idx_mod_bw = offs_idx % bankwidth
+        offs_idx = idx_mod_bw + idx_idiv_bw * memorywidth
+
         return offs_idx
 
     ### GPU SCAN CODE GOES HERE
@@ -115,11 +100,14 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
         # Detect non-zero values in weight_ar_. Update each element of the
         # identically shaped nonzero_ar_ to hold 1 for non-zero values in
         # weight_ar_ and 0 for zero values in weight_ar_
-        @cuda.jit
+        @cuda.jit("void(float32[:], int32[:], int32)")
         def detect_nonzero (weight_ar_, nonzero_ar_, arraysz):
             thid = cuda.threadIdx.x + (cuda.blockIdx.x*cuda.blockDim.x)
             if thid < arraysz:
                 nonzero_ar_[thid] = 1 if weight_ar_[thid] > 0.0 else 0
+                # debug:
+                #if nonzero_ar_[thid] == 1:
+                #    print ('nonzero_ar_[{0}] = {1}, weight_ar_[{0}] = {2}'.format(thid, nonzero_ar_[thid], weight_ar_[thid]))
 
         #
         # parallel prefix scan for stream compaction (See sect. 39.3
@@ -210,6 +198,7 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
                 scan_ar_[ai+tb_offset] = shmem[ai_s]
                 if bi < threadsperblock_:
                     scan_ar_[bi+tb_offset] = shmem[bi_s]
+                    #print ('Set scan_ar_[{0}] to shmem[{1}] = {2}'.format(bi+tb_offset, bi_s, shmem[bi_s]))
 
             return # End of one_block_scan()
 
@@ -235,13 +224,18 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
             arr_addr = thid+tb_offset
 
             if cuda.blockIdx.x > 0 and arr_addr < scan_ar_sz:
+                #print ('scan_ar_[{0}] += carry_ar_[{1}]  ||| {2} += {3}'
+                #       .format(arr_addr, cuda.blockIdx.x, scan_ar_[arr_addr], carry_ar_[cuda.blockIdx.x]))
                 scan_ar_[arr_addr] = scan_ar_[arr_addr] + carry_ar_[cuda.blockIdx.x]
+                #print ('scan_ar_[{0}] = {1}'.format (arr_addr, scan_ar_[arr_addr]))
 
         # Use the scan array in d_scan_ar to compute the
         @cuda.jit
         def extract_nonzero (d_weight_ar, weight_sz, d_scan_ar, d_result_idx, d_result_val):
             thid = cuda.threadIdx.x + (cuda.blockIdx.x*cuda.blockDim.x)
+            #print ('thread id: {0}, weight_sz: {1}'.format(thid, weight_sz))
             if thid < weight_sz and d_weight_ar[thid] > 0.0:
+                #print ('thread id: {2}. d_weight_ar[thid]: {0}, d_scan_ar[thid]: {1}'.format(d_weight_ar[thid], d_scan_ar[thid], thid))
                 d_result_idx[d_scan_ar[thid]] = thid
                 d_result_val[d_scan_ar[thid]] = d_weight_ar[thid]
 
@@ -249,41 +243,41 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
         # END of kernel definitions
 
         # reduce_nonzero_gpu code proper starts:
-
+        print ('--- reduce_nonzero_gpu ---')
         print ('threadsperblock: {0}'.format(threadsperblock))
         print ('arrayszplus: {0}'.format(arrayszplus))
-        print ('arraysz: {0}'.format(arraysz))
+        print ('arraysz: {0}'.format(arraysz)) # Set by code above - size of the weight array. Quite big
 
         #
         # Build input data for the test
         #
-        arraysz1 = rowlen*rowlen # uh oh, this CHANGES the size of arraysz, which was already set.
+        arraysz1 = rowlen*rowlen # Is this required?
+        print ('arraysz1: {0}'.format(arraysz1))
 
-        blockspergrid = math.ceil(arraysz1/threadsperblock)
+        blockspergrid = math.ceil(arraysz/threadsperblock)
         print ('blockspergrid: {0}'.format(blockspergrid))
 
         # To pad the arrays out to exact number of blocks
-        if arraysz1%threadsperblock:
-            amod = arraysz1%threadsperblock
-            print ('--\namod: {0}'.format(amod))
-            print ('arraysz1: {0}'.format(arraysz1))
-            print ('threadsperblock: {0}'.format(threadsperblock))
-            arrayszplus = arraysz1 + threadsperblock - amod
-            print ('arrayszplus: {0}'.format(arrayszplus))
-        else:
-            arrayszplus = arraysz1
-        print ('arrayszplus: {0}'.format(arrayszplus))
-
-        if arrayszplus <= threadsperblock:
-            print ('WARNING: Make threadsperblock > arrayszplus')
+        #if arraysz%threadsperblock > 0:
+        #    amod = arraysz%threadsperblock
+        #    print ('--\namod: {0}'.format(amod))
+        #    print ('arraysz: {0}'.format(arraysz))
+        #    print ('threadsperblock: {0}'.format(threadsperblock))
+        #    arrayszplus = arraysz + threadsperblock - amod
+        #    print ('arrayszplus: {0}'.format(arrayszplus))
+        #else:
+        #    print ('Set arrayszplus to arraysz1...')
+        #    arrayszplus = arraysz
+        #    print ('arrayszplus: {0}'.format(arrayszplus))
 
         # nonzero_ar is set to 1 for every element for which weight_ar is >0
+        print ('allocate arrayszplus={0} uint32s in nonzero_ar'.format(arrayszplus))
         nonzero_ar = np.zeros((arrayszplus,), dtype=np.uint32)
 
         # scan_ar is going to hold the result of scanning the input
         scan_ar = np.zeros((arrayszplus,), dtype=np.uint32)
 
-        # Explicitly copy working data to device (two lots of arraysz1 data on GPU memory)
+        # Explicitly copy working data to device (two lots of arraysz data on GPU memory)
         print ("Allocating " + str(4*arrayszplus) + " bytes on the GPU memory (d_nonzero_ar)")
         d_nonzero_ar = cuda.to_device (nonzero_ar)
         print ("Allocating " + str(4*arrayszplus) + " bytes on the GPU memory (d_scan_ar)")
@@ -295,7 +289,7 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
         # And containers for the scan
         scanlist = []
         d_scanlist = []
-        asz = arraysz1
+        asz = arraysz
         print ('asz: {0} threadsperblock: {1}'.format(asz, threadsperblock))
         while asz > threadsperblock:
 
@@ -324,7 +318,8 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
         # partial sums
         #
         # The first input is the weight array, compute block-wise prefix-scan sums:
-        detect_nonzero[blockspergrid, threadsperblock] (d_weight_ar, d_nonzero_ar, arrayszplus)
+        detect_nonzero[blockspergrid, threadsperblock] (d_weight_ar, d_nonzero_ar, arraysz)
+        print ('First one_block_scan...')
         one_block_scan[blockspergrid, threadsperblock] (d_scan_ar, d_nonzero_ar, d_carrylist[0], threadsperblock, arrayszplus)
 
         asz = math.ceil (arrayszplus / threadsperblock)
@@ -333,13 +328,14 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
         while asz > threadsperblock:
             scanblocks = math.ceil (asz / threadsperblock)
             scanblocks = scanblocks + threadsperblock - scanblocks%threadsperblock
+            print ('while loop one_block_scan...')
             one_block_scan[scanblocks, threadsperblock](d_scanlist[j], d_carrylist[j], d_carrylist[j+1], threadsperblock, len(carrylist[j]))
             asz = scanblocks
             j = j+1
         # Plus one more iteration:
         scanblocks = math.ceil (asz / threadsperblock)
         scanblocks = scanblocks + threadsperblock - scanblocks%threadsperblock
-        print ('scanblock: {0} threadsperblock: {1}, j is {2}'.format(scanblocks, threadsperblock, j))
+        print ('last one_block_scan. scanblock: {0} threadsperblock: {1}, j is {2}'.format(scanblocks, threadsperblock, j))
         one_block_scan[scanblocks, threadsperblock](d_scanlist[j], d_carrylist[j], d_carrylist[j+1], threadsperblock, len(carrylist[j]))
 
         #
@@ -358,33 +354,19 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
         #sum_scans[blockspergrid, threadsperblock](d_scanf_ar, d_scan_ar, arrayszplus, d_carrylist[0])
         sum_scans_destructively[blockspergrid, threadsperblock](d_scan_ar, arrayszplus, d_carrylist[0])
 
-        # Finally, in parallel, populate d_result_idx and d_result_val.
-        extract_nonzero[blockspergrid, threadsperblock] (d_weight_ar, arraysz1, d_scan_ar, d_result_idx, d_result_val)
+        # Finally, in parallel, populate d_result_idx and
+        # d_result_val. In my example, this populates 197 entries. In
+        # principle all 10000 entries could be populated. Perhaps I need to initialise d_result_idx and d_result_val?
+        extract_nonzero[blockspergrid, threadsperblock] (d_weight_ar, arraysz, d_scan_ar, d_result_idx, d_result_val)
 
         return # END reduce_nonzero_gpu()
     ###############################################################################
     ### GPU SCAN CODE TO HERE
 
-    # Shifts index to avoid bank conflicts (on GTX1070)
-    #@cuda.jit(device=True)
-    #def shifted_idx_dup (idx):
-    #    num_banks = 16 # 16 and 768 works for GTX1070/Compute capability 6.1
-    #    bank_width_int32 = 768
-    #    # max_idx = (bank_width_int32 * num_banks)
-    #    idx_idiv_num_banks = idx // num_banks
-    #    idx_mod_num_banks = idx % num_banks
-    #    offs_idx = ((bank_width_int32 * idx_mod_num_banks) + (idx_idiv_num_banks)) # ?!
-    #    return offs_idx
-
-    # Non-shifting version
-    @cuda.jit(device=True)
-    def shifted_idx_noop (idx):
-        return idx
-
     ### CONNECTION FUNCTION-COMPUTING CODE HERE
     #
-    @cuda.jit("void(float32, int32, float32[:,:], float32[:,:], float32[:], float32, float32,float32, float32,  float32, float32, int32,     int32)")
-    def dowork (M_f_start,  nfs_sq, src_ar,       dst_ar,       weight_ar,  sigma_m, E2,     sigma_0, fovshift, nfs,     W_cut,   offsetd0p, offsetd1r):
+    @cuda.jit("void(float32, int32, int32[:,:],   int32[:,:], float32[:], float32, float32,float32, float32,  float32, float32, int32,     int32)")
+    def dowork (M_f_start,  nfs_sq, d_src_ar,     d_dst_ar,     weight_ar,  sigma_m, E2,     sigma_0, fovshift, nfs,     W_cut,   offsetd0p, offsetd1r):
         # Work out i_src and i_dst based on the 2-D thread index
         i_src, i_dst = cuda.grid(2)
         ##print ('i_src: {0}, i_dst: {1}'.format(i_src, i_dst))
@@ -392,43 +374,40 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
         if i_src < nfs_sq and i_dst < nfs_sq:
 
             # Temporary shared memory for weights
-            tmp_w = cuda.shared.array(24576, dtype=float32) # Note - allocating ALL shared memory here.
-            #print ('cuda.threadIdx.y: {0} cuda.blockDim.x: {1} cuda.threadIdx.x: {2}'.format(cuda.threadIdx.y, cuda.blockDim.x, cuda.threadIdx.x))
+            tmp_w = cuda.shared.array(12288, dtype=float32) # Note - allocating ALL shared memory here.
+            ##print ('cuda.threadIdx.y: {0} cuda.blockDim.x: {1} cuda.threadIdx.x: {2}'.format(cuda.threadIdx.y, cuda.blockDim.x, cuda.threadIdx.x))
             myidx = (cuda.threadIdx.y*cuda.blockDim.x + cuda.threadIdx.x)
             offsidx = shifted_idx3 (myidx)
-            #print('myidx: {0}, shifted: {1}'.format(myidx, offsidx))
+            ##print('myidx: {0}, shifted: {1}'.format(myidx, offsidx))
             tmp_w[offsidx] = float32(0.0)
             tmp_w[offsidx+1] = float32(0.0)
             tmp_w[offsidx+2] = float32(0.0)
             cuda.syncthreads()
-            #print ('After syncthreads: tmp_w[0]:{0} [1]:{1} [2]:{2}'.format(tmp_w[0], tmp_w[1], tmp_w[2]))
+            ##print ('After syncthreads: tmp_w[0]:{0} [1]:{1} [2]:{2}'.format(tmp_w[0], tmp_w[1], tmp_w[2]))
 
-            # Compute the location of src_ar, this defines what sigma will be. As r (as opp. to phi) increases, the sigma should increase.
-            M_f = float32(nfs)/(E2*math.log(((1+src_ar[i_src,1])/(2*E2))+1))
+            # Compute the location of d_src_ar, this defines what sigma will be. As r (as opp. to phi) increases, the sigma should increase.
+            M_f = float32(nfs)/(E2*math.log(((1+d_src_ar[i_src,1])/(2*E2))+1))
 
             # Set some of M_f to 1 to ensure the fan-out starts at around the edge of the foveal region.
-            if (1+src_ar[i_src,1]) < fovshift:
-                #print ('reset M_f to M_f_start because 1+src_ar[i_src={2},1] (1+{0:f}) < fovshift ({1:f})'.format(src_ar[i_src,1], fovshift, i_src))
+            if (1+d_src_ar[i_src,1]) < fovshift:
+                ##print ('reset M_f to M_f_start because 1+d_src_ar[i_src={2},1] (1+{0:f}) < fovshift ({1:f})'.format(d_src_ar[i_src,1], fovshift, i_src))
                 M_f = M_f_start
 
             # Compute modified sigma and 3 times this value
-            _sigma = (sigma_m/M_f) - (sigma_m/M_f_start) + sigma_0 # as function of r, aka src_ar[1]. M_f is the function of r.
+            _sigma = (sigma_m/M_f) - (sigma_m/M_f_start) + sigma_0 # as function of r, aka d_src_ar[1]. M_f is the function of r.
             three_sigma = float32(3.0) * _sigma
-            #print ('i_src: {4} i_dst: {5}. src_ar: ({0:f},{1:f}) dst_ar: ({2:f},{3:f})'.format(src_ar[i_src,0], src_ar[i_src,1], dst_ar[i_dst,0], dst_ar[i_dst,1], i_src, i_dst))
-            #if M_f != M_f_start:
-                #print ('sigma_m: {0:f}, M_f:{1:f}. M_f_start:{2:f}. sigma_0: {3:f} _sigma: {4:f} three_sigma: {5:f}'.format(sigma_m, M_f, M_f_start, sigma_0, _sigma, three_sigma))
-            # compare this from gpu:
-            # sigma_m: 25.000000, M_f:6.805190. M_f_start:6.805190. sigma_0: 0.300000 _sigma: 0.300000 three_sigma: 0.900000
-            # with this from cpu:
-            # sigma_m: 25.000000, M_f:5.770780. M_f_start:6.805190. sigma_0: 0.300000 _sigma: 0.958503 three_sigma: 2.875510
+            ##print ('i_src: {4} i_dst: {5}. d_src_ar: ({0:f},{1:f}) d_dst_ar: ({2:f},{3:f})'.format(d_src_ar[i_src,0], d_src_ar[i_src,1], d_dst_ar[i_dst,0], d_dst_ar[i_dst,1], i_src, i_dst))
+            ##if M_f != M_f_start:
+                ##print ('sigma_m: {0:f}, M_f:{1:f}. M_f_start:{2:f}. sigma_0: {3:f} _sigma: {4:f} three_sigma: {5:f}'.format(sigma_m, M_f, M_f_start, sigma_0, _sigma, three_sigma))
 
-            # in-xy-plane distance (ignore src_ar[2]/dstdoc[2])
-            xd = (src_ar[i_src,0] - dst_ar[i_dst,0] + offsetd0p)
-            yd = (src_ar[i_src,1] - dst_ar[i_dst,1] + offsetd1r)
+            # in-xy-plane distance (ignore d_src_ar[2]/dstdoc[2])
+            xd = (d_src_ar[i_src,0] - d_dst_ar[i_dst,0] + offsetd0p)
+            yd = (d_src_ar[i_src,1] - d_dst_ar[i_dst,1] + offsetd1r)
             if abs(xd) < three_sigma and abs(yd) < three_sigma:
                 ##print('(abs(xd) abs({0:f}) < three_sigma {1:f} and abs(yd) abs({2:f}) < three_sigma)'.format(xd, yd, three_sigma))
                 dist = math.sqrt(math.pow(xd,2) + math.pow(yd,2))
                 gauss = math.exp(-0.5*math.pow(dist/_sigma,2))
+                #gauss = float32(d_src_ar[i_dst,1])
                 ##print ('i_src: {0} i_dst: {1} gauss: {2}'.format(i_src, i_dst, gauss))
                 if gauss > W_cut:
                     # Write result into weight_ar
@@ -447,27 +426,36 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
                 # Write data from tmp_w to res_ar, but only in ONE thread from the threadblock. Should avoid racing.
                 for idx in range(0,tpb): # 512 was hard coded here; changed it for tpb
                     offsidx2 = shifted_idx3 (idx)
-                    #print('myidx: {0}, idx: {1}, shifted: {2}'.format(myidx, idx, offsidx2))
+                    ##print('myidx: {0}, idx: {1}, shifted: {2}'.format(myidx, idx, offsidx2))
                     theweight = tmp_w[offsidx2] # weight should be the first one, so no +1 or +2
                     #if gt(theweight, W_cut): # Testing makes no difference to speed
                     # Add to weight_ar
-                    weight_idx = int32(tmp_w[offsidx2+1])*nfs_sq + int32(tmp_w[offsidx2+2])
+                    weight_idx = int32(tmp_w[offsidx2+1])*nfs_sq + int32(tmp_w[offsidx2+2])# right way round?
                     ##if (theweight > 0.0):
                         ##print ('Set weight_ar[{0}]={1}'.format(weight_idx, theweight))
                     weight_ar[weight_idx] = theweight
-                    if weight_idx > 0:
-                        print ('weight_ar[{0}] = {1:f}'.format(weight_idx, theweight))
+                    ##if weight_idx > 0:
+                        ##print ('weight_ar[{0}] = {1:f}'.format(weight_idx, theweight))
 
         return # end dowork()
+
+    # Initialise a device array with a value. Use with a 1D grid of 1D threadblocks
+    @cuda.jit("void(uint32[:],uint32,uint32)")
+    def init_array (d_array, d_array_sz, value):
+        thid = cuda.threadIdx.x + (cuda.blockIdx.x*cuda.blockDim.x)
+        if thid < d_array_sz:
+            d_array[thid] = value
 
     # Compute once only
     M_f_start=nfs/(E2*math.log((fovshift/(2*E2))+1))
     print('M_f_start: {0:f}'.format(M_f_start))
     nfs_sq = nfs*nfs
 
-    # Copy srclocs and dstlocs to device memory before starting
+    # Copy srclocs and dstlocs to device memory before starting.
     src_ar = np.array(srclocs, dtype=np.int32)
     dst_ar = np.array(dstlocs, dtype=np.int32)
+    d_src_ar = cuda.to_device (src_ar)
+    d_dst_ar = cuda.to_device (dst_ar)
 
     # Device array to have the weights computed into
     weight_sz = nfs_sq*nfs_sq
@@ -479,22 +467,30 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
     print ('threadsperblock: {0}'.format(threadsperblock))
     blockspergrid = (1+(nfs_sq // threadsperblock[0]), 1+(nfs_sq // threadsperblock[1]))
     print ('blockspergrid: {0}'.format(blockspergrid)) # 157 by 79. Gives 2500 by 2500 computations - that's each of 2500 inputs to each of 2500 outs
-    print ("compute weights...");
-    dowork[blockspergrid, threadsperblock](M_f_start, nfs_sq, src_ar, dst_ar, d_weight_ar, sigma_m,E2, sigma_0, fovshift, nfs, W_cut, offsetd0p, offsetd1r)
+
+    dowork[blockspergrid, threadsperblock](M_f_start, nfs_sq, d_src_ar, d_dst_ar, d_weight_ar, sigma_m,E2, sigma_0, fovshift, nfs, W_cut, offsetd0p, offsetd1r)
     print ("computed weights");
 
     # EXTRACT NONZERO WEIGHTS. For the reduce operation, I adopt a 1-D grid of threadblocks
-    threadsperblock = 64
+    threadsperblock = 128
     blockspergrid = math.ceil(weight_sz/threadsperblock)
+    print ('blockspergrid: {0}'.format(blockspergrid))
     if weight_sz%threadsperblock:
         weight_sz_plus = weight_sz + threadsperblock - weight_sz%threadsperblock
     else:
         weight_sz_plus = weight_sz
 
-    # Allocate device memory for the reduce_nonzero_gpu result
-    out_sz = rowlen*rowlen # 2400 # 2400 enough for rowlen 50. Can I compute this from rowlen??
+    # Allocate device memory for the reduce_nonzero_gpu result. In
+    # principle this could be as large as nfs^4, but that may increase
+    # device memory usage too much. Choose a sensible value for
+    # out_sz.
+    out_sz = 5000 # rowlen*rowlen # 2400 # 2400 enough for rowlen 50.
     d_result_idx = cuda.device_array((out_sz,), dtype=np.uint32)
     d_result_val = cuda.device_array((out_sz,), dtype=np.float32)
+
+    # Call function to init d_result_idx all to uint32_max
+    bpg_init = math.ceil(out_sz/threadsperblock)
+    init_array[bpg_init, threadsperblock] (d_result_idx, out_sz, 4294967295)
 
     # Reduce it down
     dummy = 0
@@ -510,22 +506,27 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
     # Populate it from r_result_idx/val:
     j = 0
     k = 0
-    # This is slooow
+    # This may be slow
     while j < out_sz:
-        src_idx = r_result_idx[j]%nfs
-        dst_idx = r_result_idx[j]//nfs
+        if r_result_idx[j] == 4294967295:
+            break;
+        #print ('r_result_idx[{0}] = {1} %nfs_sq = {2} //nfs_sq = {3}'
+        #       .format(j, r_result_idx[j], r_result_idx[j]%nfs_sq, r_result_idx[j]//nfs_sq))
+        src_idx = r_result_idx[j]%nfs_sq
+        dst_idx = r_result_idx[j]//nfs_sq
         out[j][0] = src_idx
         out[j][1] = dst_idx
         out[j][2] = 0.0 # delay - unused
         out[j][3] = r_result_val[j]
         if (src_idx > 0 or dst_idx > 0):
             k = k+1
-            print ("src_idx: " + str(src_idx) + " dst_idx: " + str(dst_idx) + " weight: " + str(out[j][3]))
+            #print ("src_idx: " + str(src_idx) + " dst_idx: " + str(dst_idx) + " weight: " + str(out[j][3]))
         j = j+1
 
     print("Result array shape " + str(out.shape) + " k was " + str(k))
 
-    return out # end connectionFunc
+    # Truncate out at length k.
+    return out[0:k,:] # end connectionFunc
 #######################################################################
 
 
@@ -534,16 +535,18 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
 #
 
 # Set up some parameters
-rowlen = 10
+rowlen = 50
 sigma_m = 25.0
 E2 = 2.5
 sigma_0 = 0.3
 normpower = 0
 fovshift = 4
-W_cut = 0.001
+W_cut = 0.01
 
-offsetd0p = 4
-offsetd1r = 4
+offsetd0p = 0
+offsetd1r = 0
+
+import numpy as np
 
 # Containers for source/destination locations
 srclocs = []
@@ -557,7 +560,6 @@ for i in range(0, rowlen):
 result = connectionFunc (srclocs,srclocs,sigma_m,E2,sigma_0,fovshift,rowlen,W_cut,offsetd0p,offsetd1r)
 print ("Done computing")
 
-
 #
 # 3) Show weight results for one particular source neuron projecting
 # out to destination neurons.
@@ -567,9 +569,9 @@ if show_graphs>0:
     import math
 
     # The source neuron index to look at the connection pattern
-    src_index = 25 # 325
-    src_index1 = 58 # 1275
-    src_index2 = 72 # 1475
+    src_index = 45 # 325
+    src_index1 = 51 # 1275
+    src_index2 = 75 # 1475
 
     # Extract xs, ys and weights for source-to-destination connection into
     # these lists:
@@ -584,7 +586,7 @@ if show_graphs>0:
     ws2 = []
 
     for res in result:
-        print ('res: {0}'.format(res))
+        #print ('res: {0}'.format(res))
         if (res[0] == src_index):
             # In my example, the position x and y come from the
             # destination index, which is found in res[1]. res[2] contains
@@ -608,6 +610,9 @@ if show_graphs>0:
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
     ax.scatter(xs,ys,ws)
-    ax.scatter(xs1,ys1,ws1)
+    #ax.scatter(xs1,ys1,ws1)
     ax.scatter(xs2,ys2,ws2)
+    ax.set_xlim([0,9])
+    ax.set_ylim([0,9])
+
     plt.show()
