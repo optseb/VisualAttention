@@ -78,14 +78,14 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
 #
 
 # Set up some parameters
-rowlen = 50
-sigma_m = 25
+rowlen = 10
+sigma_m = 25.0
 E2 = 2.5
 sigma_0 = 0.3
 normpower = 0
 fovshift = 4
 nfs = 10 # norm 50
-W_cut = 0.001
+W_cut = 0.01
 
 offsetd0p = 0
 offsetd1r = 0
@@ -100,9 +100,6 @@ for i in range(0, rowlen):
 
 # Call the connectionFunc to generate result
 result = connectionFunc (srclocs,srclocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd0p,offsetd1r)
-offsetd0p = 4
-offsetd1r = 4
-result2 = connectionFunc (srclocs,srclocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd0p,offsetd1r)
 print ("Done computing")
 
 do_plot = 1
@@ -115,9 +112,9 @@ if do_plot > 0:
     import math
 
     # The source neuron index to look at the connection pattern
-    src_index = 25
-    src_index1 = 1275
-    src_index2 = 2475
+    src_index = 45
+    src_index1 = 51
+    src_index2 = 75
 
     # Extract xs, ys and weights for source-to-destination connection into
     # these lists:
@@ -155,43 +152,9 @@ if do_plot > 0:
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
     ax.scatter(xs,ys,ws)
-    ax.scatter(xs1,ys1,ws1)
+    #ax.scatter(xs1,ys1,ws1)
     ax.scatter(xs2,ys2,ws2)
+    ax.set_xlim([0,9])
+    ax.set_ylim([0,9])
 
-    # Extract xs, ys and weights for source-to-destination connection into
-    # these lists:
-    xs = []
-    ys = []
-    ws = []
-    xs1 = []
-    ys1 = []
-    ws1 = []
-    xs2 = []
-    ys2 = []
-    ws2 = []
-
-    for res in result2:
-        if (res[0] == src_index):
-            # In my example, the position x and y come from the
-            # destination index, which is found in res[1]. res[2] contains
-            # the delay (unused here). res[3] contains the weight.
-            xs.append(res[1]%rowlen)
-            ys.append(math.floor(res[1]/rowlen))
-            ws.append(res[3])
-            #print ('Appended ', res[1]%rowlen, math.floor(res[1]/rowlen), res[3])
-        elif (res[0] == src_index1):
-            xs1.append(res[1]%rowlen)
-            ys1.append(math.floor(res[1]/rowlen))
-            ws1.append(res[3])
-        elif (res[0] == src_index2):
-            xs2.append(res[1]%rowlen)
-            ys2.append(math.floor(res[1]/rowlen))
-            ws2.append(res[3])
-
-    # Now do a scatter plot of the weights
-    fig2 = plt.figure()
-    ax2 = fig2.add_subplot(111, projection='3d')
-    ax2.scatter(xs,ys,ws)
-    ax2.scatter(xs1,ys1,ws1)
-    ax2.scatter(xs2,ys2,ws2)
     plt.show()
