@@ -535,7 +535,7 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
 #
 
 # Set up some parameters
-rowlen = 50
+rowlen = 10
 sigma_m = 25.0
 E2 = 2.5
 sigma_0 = 0.3
