@@ -430,7 +430,7 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
                     theweight = tmp_w[offsidx2] # weight should be the first one, so no +1 or +2
                     #if gt(theweight, W_cut): # Testing makes no difference to speed
                     # Add to weight_ar
-                    weight_idx = int32(tmp_w[offsidx2+1])*nfs_sq + int32(tmp_w[offsidx2+2])# right way round?
+                    weight_idx = int32(tmp_w[offsidx2+2])*nfs_sq + int32(tmp_w[offsidx2+1])
                     ##if (theweight > 0.0):
                         ##print ('Set weight_ar[{0}]={1}'.format(weight_idx, theweight))
                     weight_ar[weight_idx] = theweight
