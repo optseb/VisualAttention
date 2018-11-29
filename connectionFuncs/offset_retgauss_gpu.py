@@ -1,8 +1,3 @@
-#
-# 1) Define the connectionFunc - the code that will be pasted into the
-# python script settings window in SpineCreator.
-#
-
 #PARNAME=sigma_m        #LOC=1,1
 #PARNAME=E2             #LOC=1,2
 #PARNAME=sigma_0        #LOC=2,1
@@ -12,8 +7,6 @@
 #PARNAME=offsetd0p      #LOC=4,1
 #PARNAME=offsetd1r      #LOC=4,2
 #HASWEIGHT
-
-from numba import cuda, float32, int32
 
 # Compute a widening Gaussian connection function for a retinotopic
 # space, to maintain a constant Gaussian width in Cartesian
@@ -36,6 +29,7 @@ from numba import cuda, float32, int32
 
 def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd0p,offsetd1r):
 
+    from numba import cuda, float32, int32
     import math
     import numpy as np
     from operator import gt
@@ -251,13 +245,12 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
         #
         # Build input data for the test
         #
-        arraysz1 = rowlen*rowlen # Is this required?
-        print ('arraysz1: {0}'.format(arraysz1))
 
         blockspergrid = math.ceil(arraysz/threadsperblock)
         print ('blockspergrid: {0}'.format(blockspergrid))
 
         # To pad the arrays out to exact number of blocks
+        # arraysz1 = nfs_sq
         #if arraysz%threadsperblock > 0:
         #    amod = arraysz%threadsperblock
         #    print ('--\namod: {0}'.format(amod))
@@ -528,91 +521,3 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
     # Truncate out at length k.
     return out[0:k,:] # end connectionFunc
 #######################################################################
-
-
-#
-# 2) Compute weights for the map
-#
-
-# Set up some parameters
-rowlen = 10
-sigma_m = 25.0
-E2 = 2.5
-sigma_0 = 0.3
-normpower = 0
-fovshift = 4
-W_cut = 0.01
-
-offsetd0p = 0
-offsetd1r = 0
-
-import numpy as np
-
-# Containers for source/destination locations
-srclocs = []
-# Make srclocs - this makes rowlen x rowlen grids:
-for i in range(0, rowlen):
-    for j in range(0, rowlen):
-        srcloc=[j,i,0] # [x,y,z] locations
-        srclocs.append(srcloc)
-
-# Call the connectionFunc to generate result
-result = connectionFunc (srclocs,srclocs,sigma_m,E2,sigma_0,fovshift,rowlen,W_cut,offsetd0p,offsetd1r)
-print ("Done computing")
-
-#
-# 3) Show weight results for one particular source neuron projecting
-# out to destination neurons.
-#
-show_graphs = 1
-if show_graphs>0:
-    import math
-
-    # The source neuron index to look at the connection pattern
-    src_index = 45 # 325
-    src_index1 = 51 # 1275
-    src_index2 = 75 # 1475
-
-    # Extract xs, ys and weights for source-to-destination connection into
-    # these lists:
-    xs = []
-    ys = []
-    ws = []
-    xs1 = []
-    ys1 = []
-    ws1 = []
-    xs2 = []
-    ys2 = []
-    ws2 = []
-
-    for res in result:
-        #print ('res: {0}'.format(res))
-        if (res[0] == src_index):
-            # In my example, the position x and y come from the
-            # destination index, which is found in res[1]. res[2] contains
-            # the delay (unused here). res[3] contains the weight.
-            xs.append(res[1]%rowlen)
-            ys.append(math.floor(res[1]/rowlen))
-            ws.append(res[3])
-            #print ('Appended ', res[1]%rowlen, math.floor(res[1]/rowlen), res[3])
-        elif (res[0] == src_index1):
-            xs1.append(res[1]%rowlen)
-            ys1.append(math.floor(res[1]/rowlen))
-            ws1.append(res[3])
-        elif (res[0] == src_index2):
-            xs2.append(res[1]%rowlen)
-            ys2.append(math.floor(res[1]/rowlen))
-            ws2.append(res[3])
-
-    # Now do a scatter plot of the weights
-    import matplotlib.pyplot as plt
-    from mpl_toolkits.mplot3d import Axes3D
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    ax.scatter(xs,ys,ws)
-    #ax.scatter(xs1,ys1,ws1)
-    ax.scatter(xs2,ys2,ws2)
-    ax.set_xlim([0,9])
-    ax.set_ylim([0,9])
-
-    plt.show()
