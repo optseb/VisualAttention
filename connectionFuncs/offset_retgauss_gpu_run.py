@@ -2,13 +2,12 @@
 import offset_retgauss_gpu as org
 
 # Set up some parameters
-rowlen = 10
-sigma_m = 25.0
+rowlen = 150
+sigma_m = 100
 E2 = 2.5
 sigma_0 = 0.3
-normpower = 0
 fovshift = 4
-W_cut = 0.001
+W_cut = 0.01
 offsetd0p = 0
 offsetd1r = 0
 
@@ -31,9 +30,9 @@ if show_graphs>0:
     import math
 
     # The source neuron index to look at the connection pattern
-    src_index = 45 # 325
-    src_index1 = 1275 # 1275
-    src_index2 = 75 # 1475
+    src_index = int(rowlen/10) * rowlen + int(rowlen/2)
+    src_index1 = int(rowlen/2) * rowlen + int(rowlen/2)
+    src_index2 = int(rowlen/10) * 9 * rowlen - int(rowlen/2)
 
     # Extract xs, ys and weights for source-to-destination connection into
     # these lists:
@@ -56,7 +55,7 @@ if show_graphs>0:
             xs.append(res[1]%rowlen)
             ys.append(math.floor(res[1]/rowlen))
             ws.append(res[3])
-            #print ('Appended ', res[1]%rowlen, math.floor(res[1]/rowlen), res[3])
+            print ('Appended ', res[1]%rowlen, math.floor(res[1]/rowlen), res[3])
         elif (res[0] == src_index1):
             xs1.append(res[1]%rowlen)
             ys1.append(math.floor(res[1]/rowlen))
@@ -72,9 +71,9 @@ if show_graphs>0:
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
     ax.scatter(xs,ys,ws)
-    #ax.scatter(xs1,ys1,ws1)
+    ax.scatter(xs1,ys1,ws1)
     ax.scatter(xs2,ys2,ws2)
-    #ax.set_xlim([0,9])
-    #ax.set_ylim([0,9])
+    ax.set_xlim([0,rowlen])
+    ax.set_ylim([0,rowlen])
 
     plt.show()

@@ -48,12 +48,12 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
 
     # Set some of M_f to 1 to ensure the fan-out starts at around the edge of the foveal region.
     if (1+srcloc[1]) < fovshift:
-      print ('reset M_f to M_f_start because 1+srcloc[1] (1+{0:f}) < fovshift ({1:f})'.format(srcloc[1], fovshift))
+      #print ('reset M_f to M_f_start because 1+srcloc[1] (1+{0:f}) < fovshift ({1:f})'.format(srcloc[1], fovshift))
       M_f = M_f_start
 
     _sigma = (sigma_m/M_f) - (sigma_m/M_f_start) + sigma_0 # as function of r, aka srcloc[1]. M_f is the function of r.
     three_sigma = 3 * _sigma
-    print ('sigma_m: {0:f}, M_f:{1:f}. M_f_start:{2:f}. sigma_0: {3:f} _sigma: {4:f} three_sigma: {5:f}'.format(sigma_m, M_f, M_f_start, sigma_0, _sigma, three_sigma))
+    #print ('sigma_m: {0:f}, M_f:{1:f}. M_f_start:{2:f}. sigma_0: {3:f} _sigma: {4:f} three_sigma: {5:f}'.format(sigma_m, M_f, M_f_start, sigma_0, _sigma, three_sigma))
     for dstloc in dstlocs:
 
       # in-xy-plane distance (ignore srcloc[2]/dstdoc[2])
@@ -78,13 +78,11 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
 #
 
 # Set up some parameters
-rowlen = 10
-sigma_m = 25.0
+rowlen = 80
+sigma_m = 37.0
 E2 = 2.5
 sigma_0 = 0.3
-normpower = 0
 fovshift = 4
-nfs = 10 # norm 50
 W_cut = 0.01
 
 offsetd0p = 0
@@ -99,7 +97,7 @@ for i in range(0, rowlen):
         srclocs.append(srcloc)
 
 # Call the connectionFunc to generate result
-result = connectionFunc (srclocs,srclocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd0p,offsetd1r)
+result = connectionFunc (srclocs,srclocs,sigma_m,E2,sigma_0,fovshift,rowlen,W_cut,offsetd0p,offsetd1r)
 print ("Done computing")
 
 do_plot = 1
@@ -112,10 +110,10 @@ if do_plot > 0:
     import math
 
     # The source neuron index to look at the connection pattern
-    src_index = 45
-    src_index1 = 51
-    src_index2 = 75
-
+    src_index = int(rowlen/10) * rowlen + int(rowlen/2)
+    src_index1 = int(rowlen/2) * rowlen + int(rowlen/2)
+    src_index2 = int(rowlen/10) * 9 * rowlen - int(rowlen/2)
+    print ('src indices: {0}, {1} and {2}'.format(src_index, src_index1, src_index2))
     # Extract xs, ys and weights for source-to-destination connection into
     # these lists:
     xs = []
@@ -152,9 +150,9 @@ if do_plot > 0:
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
     ax.scatter(xs,ys,ws)
-    #ax.scatter(xs1,ys1,ws1)
+    ax.scatter(xs1,ys1,ws1)
     ax.scatter(xs2,ys2,ws2)
-    ax.set_xlim([0,9])
-    ax.set_ylim([0,9])
+    ax.set_xlim([0,rowlen])
+    ax.set_ylim([0,rowlen])
 
     plt.show()

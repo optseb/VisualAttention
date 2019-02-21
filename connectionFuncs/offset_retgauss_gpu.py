@@ -27,7 +27,7 @@
 # For positive offsetd0p, "connections are stronger in the
 # positive p direction away from the source".
 
-def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd0p,offsetd1r):
+def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd0p_,offsetd1r_):
 
     from numba import cuda, float32, int32
     import math
@@ -358,8 +358,8 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
 
     ### CONNECTION FUNCTION-COMPUTING CODE HERE
     #
-    @cuda.jit("void(float32, int32, int32[:,:],   int32[:,:], float32[:], float32, float32,float32, float32,  float32, float32, int32,     int32)")
-    def dowork (M_f_start,  nfs_sq, d_src_ar,     d_dst_ar,     weight_ar,  sigma_m, E2,     sigma_0, fovshift, nfs,     W_cut,   offsetd0p, offsetd1r):
+    @cuda.jit("void(float32,int32,  int32[:,:],int32[:,:],float32[:],float32, float32,float32, float32,  float32,float32, int32,     int32)")
+    def dowork (M_f_start,  nfs_sq, d_src_ar,  d_dst_ar,  weight_ar, sigma_m, E2,     sigma_0, fovshift, nfs,    W_cut,   offsetd0p, offsetd1r):
         # Work out i_src and i_dst based on the 2-D thread index
         i_src, i_dst = cuda.grid(2)
         ##print ('i_src: {0}, i_dst: {1}'.format(i_src, i_dst))
@@ -442,47 +442,55 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
     # Compute once only
     M_f_start=nfs/(E2*math.log((fovshift/(2*E2))+1))
     print('M_f_start: {0:f}'.format(M_f_start))
-    nfs_sq = nfs*nfs
+    nfs_sq = int(nfs*nfs)
 
     # Copy srclocs and dstlocs to device memory before starting.
+    print('Numpy arrays...')
     src_ar = np.array(srclocs, dtype=np.int32)
     dst_ar = np.array(dstlocs, dtype=np.int32)
+    print('cuda.to_device...')
     d_src_ar = cuda.to_device (src_ar)
     d_dst_ar = cuda.to_device (dst_ar)
 
     # Device array to have the weights computed into
-    weight_sz = nfs_sq*nfs_sq
-    d_weight_ar = cuda.device_array((weight_sz,), dtype=np.float32)
+    weight_sz = int(nfs_sq*nfs_sq) # Take care to cast to int numbers which should not be floats.
+    print('cuda.device_array: weight_sz: {0}, dtype is np.float32.'.format(weight_sz))
+    d_weight_ar = cuda.device_array ((weight_sz,), dtype=np.float32)
 
     # COMPUTE WEIGHTS. Call function to compute weights in d_weight_ar
-    threadsperblock = (16,32) # 16 warps to a block; 512 threads
+    threadsperblock = (int(16),int(32)) # 16 warps to a block; 512 threads
     #threadsperblock = (16,2) # 16 warps to a block; 512 threads
     print ('threadsperblock: {0}'.format(threadsperblock))
-    blockspergrid = (1+(nfs_sq // threadsperblock[0]), 1+(nfs_sq // threadsperblock[1]))
+    blockspergrid = (int(1+(nfs_sq // threadsperblock[0])), int(1+(nfs_sq // threadsperblock[1])))
     print ('blockspergrid: {0}'.format(blockspergrid)) # 157 by 79. Gives 2500 by 2500 computations - that's each of 2500 inputs to each of 2500 outs
 
-    dowork[blockspergrid, threadsperblock](M_f_start, nfs_sq, d_src_ar, d_dst_ar, d_weight_ar, sigma_m,E2, sigma_0, fovshift, nfs, W_cut, offsetd0p, offsetd1r)
+    # Ensure inputs from connectionFunc() args are ints:
+    offsetd0p = int(offsetd0p_)
+    offsetd1r = int(offsetd1r_)
+
+    #                                "void(float32,   int32,  int32[:,:], int32[:,:], float32[:],  float32, float32,float32, float32,  float32, float32,int32,     int32)
+    dowork[blockspergrid, threadsperblock](M_f_start, nfs_sq, d_src_ar,   d_dst_ar,   d_weight_ar, sigma_m, E2,     sigma_0, fovshift, nfs,     W_cut,  offsetd0p, offsetd1r)
     print ("computed weights");
 
     # EXTRACT NONZERO WEIGHTS. For the reduce operation, I adopt a 1-D grid of threadblocks
-    threadsperblock = 128
-    blockspergrid = math.ceil(weight_sz/threadsperblock)
+    threadsperblock = int(128)
+    blockspergrid = int(math.ceil(weight_sz/threadsperblock))
     print ('blockspergrid: {0}'.format(blockspergrid))
     if weight_sz%threadsperblock:
-        weight_sz_plus = weight_sz + threadsperblock - weight_sz%threadsperblock
+        weight_sz_plus = int(weight_sz + threadsperblock - weight_sz%threadsperblock)
     else:
-        weight_sz_plus = weight_sz
+        weight_sz_plus = int(weight_sz)
 
     # Allocate device memory for the reduce_nonzero_gpu result. In
     # principle this could be as large as nfs^4, but that may increase
     # device memory usage too much. Choose a sensible value for
     # out_sz.
-    out_sz = 5000 # rowlen*rowlen # 2400 # 2400 enough for rowlen 50.
+    out_sz = int(20000000) #nfs_sq * nfs_sq / 2 # rowlen*rowlen # 2400 # 2400 enough for rowlen 50.
     d_result_idx = cuda.device_array((out_sz,), dtype=np.uint32)
     d_result_val = cuda.device_array((out_sz,), dtype=np.float32)
 
     # Call function to init d_result_idx all to uint32_max
-    bpg_init = math.ceil(out_sz/threadsperblock)
+    bpg_init = int(math.ceil(out_sz/threadsperblock))
     init_array[bpg_init, threadsperblock] (d_result_idx, out_sz, 4294967295)
 
     # Reduce it down
