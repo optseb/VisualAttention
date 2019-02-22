@@ -524,8 +524,12 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
             #print ("src_idx: " + str(src_idx) + " dst_idx: " + str(dst_idx) + " weight: " + str(out[j][3]))
         j = j+1
 
-    print("Result array shape " + str(out.shape) + " k was " + str(k))
+    print ("Total number of non-zero weights: {0}".format (k))
+
+    # When running this within the Python/C API, the receiving code
+    # seems to need the return object to be a list of tuples, rather
+    # than a numpy.ndarray. For now, oblige at computational cost.
 
     # Truncate out at length k.
-    return out[0:k,:] # end connectionFunc
+    return out[0:k,:].tolist() # end connectionFunc
 #######################################################################
