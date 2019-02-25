@@ -76,7 +76,7 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
     ### GPU SCAN CODE GOES HERE
     ###############################################################################
     # Like prefixscan_gpu, but returning the non-zero values from
-    # weight_ar in d_result_idx and d_result_val.
+    # weight_ar in d_out
     #
     # d_weight_ar - A memory area on the GPU memory containing a sparse
     # matrix of results (floating point, probably)
@@ -90,23 +90,13 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
     # threadsperblock - how many threads to launch per threadblock on the
     # GPU.
     #
-    # d_result_idx - a memory array to hold the result indices - the index
-    # into d_weight_ar that held the non-zero result.
-    #
-    # d_result_val - a memory array to hold the result values - the
-    # nonzero members of d_weight_ar
-    #
-    # GONE: res_sz - The size of d_result_idx and d_result_val. Unused
-    # (make sure your d_result* arrays have enough elements to hold
-    # all the results you're computing)
-    #
-    # d_out - The _final_ output format; 4 columns of data. Populated
-    # by extract_nonzero()
+    # d_out - Array for results in connectionFunc output format: 4
+    # columns of data. Populated by extract_nonzero()
     #
     # _nfs_sq square of neural field size (nfs is the side length of
     # the square neural field).
     #
-    def reduce_nonzero_gpu (d_weight_ar, arraysz, arrayszplus, threadsperblock, d_result_idx, d_result_val, _d_out, _nfs_sq):
+    def reduce_nonzero_gpu (d_weight_ar, arraysz, arrayszplus, threadsperblock, _d_out, _nfs_sq):
         import math
         from operator import gt
 
@@ -243,15 +233,12 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
                 #print ('scan_ar_[{0}] = {1}'.format (arr_addr, scan_ar_[arr_addr]))
 
         # Extract non zero weights from d_weight_ar and place them
-        # into d_result_idx/d_result_val and also the array d_out.
+        # into the array d_out.
         @cuda.jit
-        def extract_nonzero (d_weight_ar, weight_sz, d_scan_ar, d_result_idx, d_result_val, __d_out, __nfs_sq):
+        def extract_nonzero (d_weight_ar, weight_sz, d_scan_ar, __d_out, __nfs_sq):
             thid = cuda.threadIdx.x + (cuda.blockIdx.x*cuda.blockDim.x)
             #print ('thread id: {0}, weight_sz: {1}'.format(thid, weight_sz))
             if thid < weight_sz and d_weight_ar[thid] > 0.0:
-                #print ('thread id: {2}. d_weight_ar[thid]: {0}, d_scan_ar[thid]: {1}'.format(d_weight_ar[thid], d_scan_ar[thid], thid))
-                d_result_idx[d_scan_ar[thid]] = thid
-                d_result_val[d_scan_ar[thid]] = d_weight_ar[thid]
                 # Populate d_out in the correct format:
                 src_idx = thid%__nfs_sq
                 dst_idx = thid//__nfs_sq
@@ -382,11 +369,8 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
         else:
             print ("ERROR. Length of last carry list should be 1")
 
-        # Finally, in parallel, populate d_result_idx and
-        # d_result_val. In my example, this populates 197 entries. In
-        # principle all 10000 entries could be populated. Perhaps I need to initialise d_result_idx and d_result_val?
-        # arraysz here is equal to nfs^2
-        extract_nonzero[blockspergrid, threadsperblock] (d_weight_ar, arraysz, d_scan_ar, d_result_idx, d_result_val, _d_out, _nfs_sq)
+        # Finally, in parallel, populate d_out.
+        extract_nonzero[blockspergrid, threadsperblock] (d_weight_ar, arraysz, d_scan_ar, _d_out, _nfs_sq)
 
         return n_weights # END reduce_nonzero_gpu()
     ###############################################################################
@@ -520,13 +504,6 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
     # too much device memory. A max_n_weights parameter of
     # connectionFunc() is passed in to set out_sz.
     out_sz = int(max_n_weights)
-    print ("Allocating " + str(2*4*out_sz/1048576) + " MBytes on the GPU memory (d_result_idx and d_result_val)")
-    d_result_idx = cuda.device_array((out_sz,), dtype=np.uint32)
-    d_result_val = cuda.device_array((out_sz,), dtype=np.float32)
-
-    # Call function to init d_result_idx all to uint32_max
-    bpg_init = int(math.ceil(out_sz/threadsperblock))
-    init_array[bpg_init, threadsperblock] (d_result_idx, out_sz, 4294967295)
 
     # First we'll place the output in device memory
     print ("Allocating " + str(4*4*out_sz/1048576) + " MBytes on the GPU memory (d_out)")
@@ -535,7 +512,7 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
     # Reduce it down
     dummy = 0
     print ("Reduce down to just the non-zero weights")
-    n_weights = reduce_nonzero_gpu(d_weight_ar, weight_sz, weight_sz_plus, threadsperblock, d_result_idx, d_result_val, d_out, nfs_sq)
+    n_weights = reduce_nonzero_gpu(d_weight_ar, weight_sz, weight_sz_plus, threadsperblock, d_out, nfs_sq)
     time_reduced = int(round(time.time() * 1000))
     print ("Completed reduce down after {0} ms. n_weights={1}".format(time_reduced-time_donework, n_weights))
 
