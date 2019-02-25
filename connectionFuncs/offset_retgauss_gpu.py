@@ -33,6 +33,7 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
     import math
     import numpy as np
     from operator import gt
+    import time # for code profiling
 
     # Shifts index to avoid bank conflicts (on GTX1070)
     @cuda.jit(device=True)
@@ -69,7 +70,8 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
     # d_weight_ar - A memory area on the GPU memory containing a sparse
     # matrix of results (floating point, probably)
     #
-    # arraysz - The length of the sparse matrix contained in d_weight_ar
+    # arraysz - The length of the sparse matrix contained in
+    # d_weight_ar (this will be the same as nfs_sq * nfs_sq)
     #
     # arrayszplus - The size of the memory area d_weight_ar. This should
     # be an integer multiple of threadsperblock
@@ -83,11 +85,17 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
     # d_result_val - a memory array to hold the result values - the
     # nonzero members of d_weight_ar
     #
-    # res_sz - The size of d_result_idx and d_result_val. Unused (make
-    # sure your d_result* arrays have enough elements to hold all the
-    # results you're computing)
+    # GONE: res_sz - The size of d_result_idx and d_result_val. Unused
+    # (make sure your d_result* arrays have enough elements to hold
+    # all the results you're computing)
     #
-    def reduce_nonzero_gpu (d_weight_ar, arraysz, arrayszplus, threadsperblock, d_result_idx, d_result_val, res_sz):
+    # d_out - The _final_ output format; 4 columns of data. Populated
+    # by extract_nonzero()
+    #
+    # _nfs_sq square of neural field size (nfs is the side length of
+    # the square neural field).
+    #
+    def reduce_nonzero_gpu (d_weight_ar, arraysz, arrayszplus, threadsperblock, d_result_idx, d_result_val, _d_out, _nfs_sq):
         import math
         from operator import gt
 
@@ -107,7 +115,7 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
         # parallel prefix scan for stream compaction (See sect. 39.3
         # https://developer.nvidia.com/gpugems/GPUGems3/gpugems3_ch39.html)
         #
-        # This sums up the values in nonzero_ar_, placing the running
+        # This sums up the values in input_ar_, placing the running
         # total in scan_ar_. The final carry value is placed in carry_
         #
         # This kernel carries out the prefix scan for a single threadblock.
@@ -223,16 +231,24 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
                 scan_ar_[arr_addr] = scan_ar_[arr_addr] + carry_ar_[cuda.blockIdx.x]
                 #print ('scan_ar_[{0}] = {1}'.format (arr_addr, scan_ar_[arr_addr]))
 
-        # Use the scan array in d_scan_ar to compute the
+        # Extract non zero weights from d_weight_ar and place them
+        # into d_result_idx/d_result_val and also the array d_out.
         @cuda.jit
-        def extract_nonzero (d_weight_ar, weight_sz, d_scan_ar, d_result_idx, d_result_val):
+        def extract_nonzero (d_weight_ar, weight_sz, d_scan_ar, d_result_idx, d_result_val, __d_out, __nfs_sq):
             thid = cuda.threadIdx.x + (cuda.blockIdx.x*cuda.blockDim.x)
             #print ('thread id: {0}, weight_sz: {1}'.format(thid, weight_sz))
             if thid < weight_sz and d_weight_ar[thid] > 0.0:
                 #print ('thread id: {2}. d_weight_ar[thid]: {0}, d_scan_ar[thid]: {1}'.format(d_weight_ar[thid], d_scan_ar[thid], thid))
                 d_result_idx[d_scan_ar[thid]] = thid
                 d_result_val[d_scan_ar[thid]] = d_weight_ar[thid]
-
+                # Populate d_out in the correct format:
+                src_idx = thid%__nfs_sq
+                dst_idx = thid//__nfs_sq
+                jj = d_scan_ar[thid]
+                __d_out[jj][0] = src_idx
+                __d_out[jj][1] = dst_idx
+                __d_out[jj][2] = 0.0 # delay - unused
+                __d_out[jj][3] = d_weight_ar[thid]
 
         # END of kernel definitions
 
@@ -347,12 +363,23 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
         #sum_scans[blockspergrid, threadsperblock](d_scanf_ar, d_scan_ar, arrayszplus, d_carrylist[0])
         sum_scans_destructively[blockspergrid, threadsperblock](d_scan_ar, arrayszplus, d_carrylist[0])
 
+        # Get the total number of weights from the final carrylist:
+        n_weights = 0
+        local_carrylist = d_carrylist[ns].copy_to_host()
+        last_cl_len = len(local_carrylist)
+        print ("last_cl_len should be 1: {0}".format(last_cl_len))
+        if last_cl_len == 1:
+            n_weights = local_carrylist[0]
+        else:
+            print ("ERROR. Length of last carry list should be 1")
+
         # Finally, in parallel, populate d_result_idx and
         # d_result_val. In my example, this populates 197 entries. In
         # principle all 10000 entries could be populated. Perhaps I need to initialise d_result_idx and d_result_val?
-        extract_nonzero[blockspergrid, threadsperblock] (d_weight_ar, arraysz, d_scan_ar, d_result_idx, d_result_val)
+        # arraysz here is equal to nfs^2
+        extract_nonzero[blockspergrid, threadsperblock] (d_weight_ar, arraysz, d_scan_ar, d_result_idx, d_result_val, _d_out, _nfs_sq)
 
-        return # END reduce_nonzero_gpu()
+        return n_weights # END reduce_nonzero_gpu()
     ###############################################################################
     ### GPU SCAN CODE TO HERE
 
@@ -469,8 +496,10 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
     offsetd1r = int(offsetd1r_)
 
     #                                "void(float32,   int32,  int32[:,:], int32[:,:], float32[:],  float32, float32,float32, float32,  float32, float32,int32,     int32)
+    time_start = int(round(time.time() * 1000))
     dowork[blockspergrid, threadsperblock](M_f_start, nfs_sq, d_src_ar,   d_dst_ar,   d_weight_ar, sigma_m, E2,     sigma_0, fovshift, nfs,     W_cut,  offsetd0p, offsetd1r)
-    print ("computed weights");
+    time_donework = int(round(time.time() * 1000))
+    print ("computed weights after {0} ms".format(time_donework - time_start));
 
     # EXTRACT NONZERO WEIGHTS. For the reduce operation, I adopt a 1-D grid of threadblocks
     threadsperblock = int(128)
@@ -484,7 +513,7 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
     # Allocate device memory for the reduce_nonzero_gpu result. In
     # principle this could be as large as nfs^4, but that may increase
     # device memory usage too much. Choose a sensible value for
-    # out_sz.
+    # out_sz. Probably needs to be a parameter of connectionFunc()
     out_sz = int(20000000) #nfs_sq * nfs_sq / 2 # rowlen*rowlen # 2400 # 2400 enough for rowlen 50.
     d_result_idx = cuda.device_array((out_sz,), dtype=np.uint32)
     d_result_val = cuda.device_array((out_sz,), dtype=np.float32)
@@ -493,43 +522,61 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
     bpg_init = int(math.ceil(out_sz/threadsperblock))
     init_array[bpg_init, threadsperblock] (d_result_idx, out_sz, 4294967295)
 
+    # First we'll place the output in device memory
+    d_out = cuda.device_array((out_sz,4), dtype=np.float32)
+
     # Reduce it down
     dummy = 0
     print ("reduce down to just the non-zero weights")
-    reduce_nonzero_gpu(d_weight_ar, weight_sz, weight_sz_plus, threadsperblock, d_result_idx, d_result_val, dummy)
-    print ("done reduce down")
-    r_result_idx = d_result_idx.copy_to_host()
-    r_result_val = d_result_val.copy_to_host()
+    n_weights = reduce_nonzero_gpu(d_weight_ar, weight_sz, weight_sz_plus, threadsperblock, d_result_idx, d_result_val, d_out, nfs_sq)
+    time_reduced = int(round(time.time() * 1000))
+    print ("done reduce down after {0} ms. n_weights={1}".format(time_reduced-time_donework, n_weights))
 
-    # Create the array for the final output
-    out = np.zeros((out_sz,4), dtype=np.float32)
+    # Copy the device memory back with the result.
+    out = d_out.copy_to_host()
 
-    # Populate it from r_result_idx/val:
-    j = 0
-    k = 0
-    # This may be slow
-    while j < out_sz:
-        if r_result_idx[j] == 4294967295:
-            break;
-        #print ('r_result_idx[{0}] = {1} %nfs_sq = {2} //nfs_sq = {3}'
-        #       .format(j, r_result_idx[j], r_result_idx[j]%nfs_sq, r_result_idx[j]//nfs_sq))
-        src_idx = r_result_idx[j]%nfs_sq
-        dst_idx = r_result_idx[j]//nfs_sq
-        out[j][0] = src_idx
-        out[j][1] = dst_idx
-        out[j][2] = 0.0 # delay - unused
-        out[j][3] = r_result_val[j]
-        if (src_idx > 0 or dst_idx > 0):
-            k = k+1
-            #print ("src_idx: " + str(src_idx) + " dst_idx: " + str(dst_idx) + " weight: " + str(out[j][3]))
-        j = j+1
+    if 0:
+        r_result_idx = d_result_idx.copy_to_host()
+        r_result_val = d_result_val.copy_to_host()
 
-    print ("Total number of non-zero weights: {0}".format (k))
+        # Create the array for the final output
+        #out = np.zeros((out_sz,4), dtype=np.float32)
+
+        # Populate it from r_result_idx/val:
+        j = 0
+        n_weights = 0
+        # This may be slow. It is. 4 to 5 times the time of reducing the data down.
+        # Can this be incorporated into extract_nonzero()?
+        while j < out_sz:
+            if r_result_idx[j] == 4294967295:
+                break;
+            #print ('r_result_idx[{0}] = {1} %nfs_sq = {2} //nfs_sq = {3}'
+            #       .format(j, r_result_idx[j], r_result_idx[j]%nfs_sq, r_result_idx[j]//nfs_sq))
+            src_idx = r_result_idx[j]%nfs_sq
+            dst_idx = r_result_idx[j]//nfs_sq
+            print ('Weight for {0} to {1} = {2} nfs_sq={3}'.format(src_idx, dst_idx, r_result_val[j], nfs_sq))
+            __src_idx = out[j][0]
+            __dst_idx = out[j][1]
+            __w_val = out[j][3]
+            print ('Weight for {0} to {1} = {2}'.format(__src_idx, __dst_idx, __w_val))
+            out[j][0] = src_idx
+            out[j][1] = dst_idx
+            out[j][2] = 0.0 # delay - unused
+            out[j][3] = r_result_val[j]
+            if (src_idx > 0 or dst_idx > 0):
+                n_weights = n_weights+1
+                #print ("src_idx: " + str(src_idx) + " dst_idx: " + str(dst_idx) + " weight: " + str(out[j][3]))
+            j = j+1
+
+    time_arraycreated = int(round(time.time() * 1000))
+    print ("Got final result after {0} ms".format(time_arraycreated-time_reduced))
+
+    print ("Total number of non-zero weights: {0}. out_sz: {1}.".format (n_weights, out_sz))
 
     # When running this within the Python/C API, the receiving code
     # seems to need the return object to be a list of tuples, rather
     # than a numpy.ndarray. For now, oblige at computational cost.
 
-    # Truncate out at length k.
-    return out[0:k,:].tolist() # end connectionFunc
+    # Truncate out at length n_weights.
+    return out[0:n_weights,:].tolist() # end connectionFunc
 #######################################################################
