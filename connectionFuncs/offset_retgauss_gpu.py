@@ -6,6 +6,7 @@
 #PARNAME=W_cut          #LOC=3,2
 #PARNAME=offsetd0p      #LOC=4,1
 #PARNAME=offsetd1r      #LOC=4,2
+#PARNAME=max_n_weights  #LOC=5,1
 #HASWEIGHT
 
 # Compute a widening Gaussian connection function for a retinotopic
@@ -26,14 +27,24 @@
 #
 # For positive offsetd0p, "connections are stronger in the
 # positive p direction away from the source".
+#
+# max_n_weights is the size of the array to allocate to contain the
+# generated weights. In principle this could be nfs^4, but for a 150
+# side neural field side, that would result in a requirement for 8 GB
+# of device RAM. Instead, specify max_n_weights and hope you chose
+# enough! 20,000,000 is reasonable.
 
-def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd0p_,offsetd1r_):
+def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd0p,offsetd1r,max_n_weights):
 
     from numba import cuda, float32, int32
     import math
     import numpy as np
     from operator import gt
     import time # for code profiling
+
+    # Ensure these are fixed to being ints
+    _offsetd0p = int(offsetd0p)
+    _offsetd1r = int(offsetd1r)
 
     # Shifts index to avoid bank conflicts (on GTX1070)
     @cuda.jit(device=True)
@@ -287,9 +298,9 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
         scan_ar = np.zeros((arrayszplus,), dtype=np.uint32)
 
         # Explicitly copy working data to device (two lots of arraysz data on GPU memory)
-        print ("Allocating " + str(4*arrayszplus) + " bytes on the GPU memory (d_nonzero_ar)")
+        print ("Allocating " + str(4*arrayszplus/1048576) + " MBytes on the GPU memory (d_nonzero_ar)")
         d_nonzero_ar = cuda.to_device (nonzero_ar)
-        print ("Allocating " + str(4*arrayszplus) + " bytes on the GPU memory (d_scan_ar)")
+        print ("Allocating " + str(4*arrayszplus/1048576) + " MBytes on the GPU memory (d_scan_ar)")
         d_scan_ar = cuda.to_device (scan_ar)
 
         # Make up a list of carry vectors and allocate device memory
@@ -307,14 +318,14 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
             if carrysz%threadsperblock:
                 carrysz = carrysz + threadsperblock - carrysz%threadsperblock
 
-            print ("Allocating " + str(4*carrysz) + " bytes on the GPU memory (carrylist)")
+            print ("Allocating " + str(4*carrysz/1024) + " KBytes on the GPU memory (carrylist)")
             carrylist.append (np.zeros((carrysz,), dtype=np.float32))
             d_carrylist.append (cuda.to_device(carrylist[-1]))
             asz = math.ceil (asz / threadsperblock)
             scansz = asz
             if scansz%threadsperblock:
                 scansz = scansz + threadsperblock - scansz%threadsperblock
-            print ("Allocating " + str(4*scansz) + " bytes on the GPU memory (scanlist)")
+            print ("Allocating " + str(4*scansz/1024) + " KBytes on the GPU memory (scanlist)")
             scanlist.append (np.zeros((scansz,), dtype=np.float32))
             d_scanlist.append (cuda.to_device(scanlist[-1]))
 
@@ -352,22 +363,20 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
         #
         ns = len(scanlist)
         j = ns
-        print ('j starts at {0}'.format(j))
+        #print ('j starts at {0}'.format(j))
         while j > 0:
             sumblocks = math.ceil(len(scanlist[j-1])/threadsperblock)
             sum_scans[sumblocks, threadsperblock](d_carrylist[j-1], d_scanlist[j-1], len(scanlist[j-1]), d_carrylist[j])
             # Now d_carrylist[j-1] has had its carrys added from the lower level
             j = j-1
 
-        # The final sum_scans() call. Do I really need d_scanf_ar here? Couldn't I sum within d_scan_ar destructively at this point?
-        #sum_scans[blockspergrid, threadsperblock](d_scanf_ar, d_scan_ar, arrayszplus, d_carrylist[0])
+        # The final sum_scans() call. I sum within d_scan_ar destructively at this point.
         sum_scans_destructively[blockspergrid, threadsperblock](d_scan_ar, arrayszplus, d_carrylist[0])
 
         # Get the total number of weights from the final carrylist:
         n_weights = 0
         local_carrylist = d_carrylist[ns].copy_to_host()
         last_cl_len = len(local_carrylist)
-        print ("last_cl_len should be 1: {0}".format(last_cl_len))
         if last_cl_len == 1:
             n_weights = local_carrylist[0]
         else:
@@ -491,13 +500,9 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
     blockspergrid = (int(1+(nfs_sq // threadsperblock[0])), int(1+(nfs_sq // threadsperblock[1])))
     print ('blockspergrid: {0}'.format(blockspergrid)) # 157 by 79. Gives 2500 by 2500 computations - that's each of 2500 inputs to each of 2500 outs
 
-    # Ensure inputs from connectionFunc() args are ints:
-    offsetd0p = int(offsetd0p_)
-    offsetd1r = int(offsetd1r_)
-
     #                                "void(float32,   int32,  int32[:,:], int32[:,:], float32[:],  float32, float32,float32, float32,  float32, float32,int32,     int32)
     time_start = int(round(time.time() * 1000))
-    dowork[blockspergrid, threadsperblock](M_f_start, nfs_sq, d_src_ar,   d_dst_ar,   d_weight_ar, sigma_m, E2,     sigma_0, fovshift, nfs,     W_cut,  offsetd0p, offsetd1r)
+    dowork[blockspergrid, threadsperblock](M_f_start, nfs_sq, d_src_ar,   d_dst_ar,   d_weight_ar, sigma_m, E2,     sigma_0, fovshift, nfs,     W_cut,  _offsetd0p, _offsetd1r)
     time_donework = int(round(time.time() * 1000))
     print ("computed weights after {0} ms".format(time_donework - time_start));
 
@@ -511,10 +516,11 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
         weight_sz_plus = int(weight_sz)
 
     # Allocate device memory for the reduce_nonzero_gpu result. In
-    # principle this could be as large as nfs^4, but that may increase
-    # device memory usage too much. Choose a sensible value for
-    # out_sz. Probably needs to be a parameter of connectionFunc()
-    out_sz = int(20000000) #nfs_sq * nfs_sq / 2 # rowlen*rowlen # 2400 # 2400 enough for rowlen 50.
+    # principle this could be as large as nfs^4, but that can call for
+    # too much device memory. A max_n_weights parameter of
+    # connectionFunc() is passed in to set out_sz.
+    out_sz = int(max_n_weights)
+    print ("Allocating " + str(2*4*out_sz/1048576) + " MBytes on the GPU memory (d_result_idx and d_result_val)")
     d_result_idx = cuda.device_array((out_sz,), dtype=np.uint32)
     d_result_val = cuda.device_array((out_sz,), dtype=np.float32)
 
@@ -523,60 +529,27 @@ def connectionFunc(srclocs,dstlocs,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsetd
     init_array[bpg_init, threadsperblock] (d_result_idx, out_sz, 4294967295)
 
     # First we'll place the output in device memory
+    print ("Allocating " + str(4*4*out_sz/1048576) + " MBytes on the GPU memory (d_out)")
     d_out = cuda.device_array((out_sz,4), dtype=np.float32)
 
     # Reduce it down
     dummy = 0
-    print ("reduce down to just the non-zero weights")
+    print ("Reduce down to just the non-zero weights")
     n_weights = reduce_nonzero_gpu(d_weight_ar, weight_sz, weight_sz_plus, threadsperblock, d_result_idx, d_result_val, d_out, nfs_sq)
     time_reduced = int(round(time.time() * 1000))
-    print ("done reduce down after {0} ms. n_weights={1}".format(time_reduced-time_donework, n_weights))
+    print ("Completed reduce down after {0} ms. n_weights={1}".format(time_reduced-time_donework, n_weights))
 
     # Copy the device memory back with the result.
     out = d_out.copy_to_host()
-
-    if 0:
-        r_result_idx = d_result_idx.copy_to_host()
-        r_result_val = d_result_val.copy_to_host()
-
-        # Create the array for the final output
-        #out = np.zeros((out_sz,4), dtype=np.float32)
-
-        # Populate it from r_result_idx/val:
-        j = 0
-        n_weights = 0
-        # This may be slow. It is. 4 to 5 times the time of reducing the data down.
-        # Can this be incorporated into extract_nonzero()?
-        while j < out_sz:
-            if r_result_idx[j] == 4294967295:
-                break;
-            #print ('r_result_idx[{0}] = {1} %nfs_sq = {2} //nfs_sq = {3}'
-            #       .format(j, r_result_idx[j], r_result_idx[j]%nfs_sq, r_result_idx[j]//nfs_sq))
-            src_idx = r_result_idx[j]%nfs_sq
-            dst_idx = r_result_idx[j]//nfs_sq
-            print ('Weight for {0} to {1} = {2} nfs_sq={3}'.format(src_idx, dst_idx, r_result_val[j], nfs_sq))
-            __src_idx = out[j][0]
-            __dst_idx = out[j][1]
-            __w_val = out[j][3]
-            print ('Weight for {0} to {1} = {2}'.format(__src_idx, __dst_idx, __w_val))
-            out[j][0] = src_idx
-            out[j][1] = dst_idx
-            out[j][2] = 0.0 # delay - unused
-            out[j][3] = r_result_val[j]
-            if (src_idx > 0 or dst_idx > 0):
-                n_weights = n_weights+1
-                #print ("src_idx: " + str(src_idx) + " dst_idx: " + str(dst_idx) + " weight: " + str(out[j][3]))
-            j = j+1
 
     time_arraycreated = int(round(time.time() * 1000))
     print ("Got final result after {0} ms".format(time_arraycreated-time_reduced))
 
     print ("Total number of non-zero weights: {0}. out_sz: {1}.".format (n_weights, out_sz))
+    if n_weights > max_n_weights:
+        print ("---------------\nWARNING WARNING:\n---------------\nUser chose {0} as max_n_weights, but {1} weights were generated.\nMemory corruption may have occurred!!\n---------------".format(max_n_weights, n_weights))
 
-    # When running this within the Python/C API, the receiving code
-    # seems to need the return object to be a list of tuples, rather
-    # than a numpy.ndarray. For now, oblige at computational cost.
-
-    # Truncate out at length n_weights.
+    # Truncate out at length n_weights. Note we're returning a Numpy
+    # array cast to a list.
     return out[0:n_weights,:].tolist() # end connectionFunc
 #######################################################################

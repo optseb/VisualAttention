@@ -10,6 +10,7 @@ fovshift = 4
 W_cut = 0.01
 offsetd0p = 0
 offsetd1r = 0
+max_n_weights = 20000000
 
 # Containers for source/destination locations
 srclocs = []
@@ -20,12 +21,12 @@ for i in range(0, rowlen):
         srclocs.append(srcloc)
 
 # Call the connectionFunc to generate result
-result = org.connectionFunc (srclocs,srclocs,sigma_m,E2,sigma_0,fovshift,rowlen,W_cut,offsetd0p,offsetd1r)
-print ("Done computing")
+result = org.connectionFunc (srclocs,srclocs,sigma_m,E2,sigma_0,fovshift,rowlen,W_cut,offsetd0p,offsetd1r,max_n_weights)
+print ("Done computing, result is a {0}".format(type(result)))
 
 # Show weight results for one particular source neuron projecting
 # out to destination neurons.
-show_graphs = 1
+show_graphs = 0
 if show_graphs>0:
     import math
 
@@ -55,7 +56,7 @@ if show_graphs>0:
             xs.append(res[1]%rowlen)
             ys.append(math.floor(res[1]/rowlen))
             ws.append(res[3])
-            print ('Appended ', res[1]%rowlen, math.floor(res[1]/rowlen), res[3])
+            #print ('Appended ', res[1]%rowlen, math.floor(res[1]/rowlen), res[3])
         elif (res[0] == src_index1):
             xs1.append(res[1]%rowlen)
             ys1.append(math.floor(res[1]/rowlen))
