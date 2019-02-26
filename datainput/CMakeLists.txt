@@ -36,6 +36,8 @@ include_directories(/var/lib/brahms/Namespace)
 include_directories(${SYSTEMML_INSTALL_PATH}/BRAHMS/include)
 include_directories(${SYSTEMML_INSTALL_PATH}/Namespace)
 include_directories($ENV{HOME}/usr/include)
+include_directories(/usr/include/eigen3)
+include_directories(/usr/local/include)
 link_directories(${SYSTEMML_INSTALL_PATH}/BRAHMS/bin)
 add_library(${BC_TARGET} SHARED ${BC_SOURCE})
 # "" rather than "lib" to give Brahms style "component.so" not "libcomponent.so":
