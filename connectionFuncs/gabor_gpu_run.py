@@ -9,7 +9,6 @@ lambda_s = 16
 gain_s = 1
 dir_s = 145
 W_cut = 0.001
-roi = 18.0
 max_n_weights = 20000000
 
 # Containers for source/destination locations
@@ -21,7 +20,7 @@ for i in range(0, rowlen):
         srclocs.append(srcloc)
 
 # Call the connectionFunc to generate result
-result = cf.connectionFunc (srclocs,srclocs,rowlen,sigma_g,gain_g,lambda_s,gain_s,dir_s,W_cut,roi,max_n_weights)
+result = cf.connectionFunc (srclocs,srclocs,rowlen,sigma_g,gain_g,lambda_s,gain_s,dir_s,W_cut,max_n_weights)
 print ("Done computing, result is a {0}".format(type(result)))
 
 # Show weight results for one particular source neuron projecting

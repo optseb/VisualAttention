@@ -1,11 +1,11 @@
-#PARNAME=sigma_g  #LOC=1,1
-#PARNAME=gain_g   #LOC=1,2
-#PARNAME=lambda_s #LOC=2,1
-#PARNAME=gain_s   #LOC=2,2
-#PARNAME=dir_s    #LOC=3,1
-#PARNAME=W_cut    #LOC=3,2
-#PARNAME=roi      #LOC=4,1
-#PARNAME=max_n_weights  #LOC=4,2
+#PARNAME=nfs      #LOC=1,1
+#PARNAME=sigma_g  #LOC=2,1
+#PARNAME=gain_g   #LOC=2,2
+#PARNAME=lambda_s #LOC=3,1
+#PARNAME=gain_s   #LOC=3,2
+#PARNAME=dir_s    #LOC=4,1
+#PARNAME=W_cut    #LOC=4,2
+#PARNAME=max_n_weights  #LOC=5,1
 #HASWEIGHT
 
 # This implements a Gabor connection; a 2-D Gaussian multiplied by a
@@ -17,7 +17,6 @@
 # gain_s - gain of sine
 # dir_s - direction of (1-D) sine in degrees
 # W_cut - weight cut-off; weights below this considered to be 0
-# roi - region of interest. Possibly irrelevant for this GPU code?
 #
 # max_n_weights is the size of the array to allocate to contain the
 # generated weights. In principle this could be nfs^4, but for a 150
@@ -25,7 +24,7 @@
 # of device RAM. Instead, specify max_n_weights and hope you chose
 # enough! 20,000,000 is reasonable.
 
-def connectionFunc(srclocs,dstlocs,nfs,sigma_g,gain_g,lambda_s,gain_s,dir_s,W_cut,roi,max_n_weights):
+def connectionFunc(srclocs,dstlocs,nfs,sigma_g,gain_g,lambda_s,gain_s,dir_s,W_cut,max_n_weights):
 
     from numba import cuda, float32, int32
     import math
@@ -351,8 +350,8 @@ def connectionFunc(srclocs,dstlocs,nfs,sigma_g,gain_g,lambda_s,gain_s,dir_s,W_cu
 
     ### CONNECTION FUNCTION-COMPUTING CODE HERE
     #
-    @cuda.jit("void(int32,int32[:,:],int32[:,:],float32[:],float32, float32,float32,  float32, float32,float32, float32)", nopython=True)
-    def dowork (nfs_sq,   d_src_ar,  d_dst_ar,  weight_ar, sigma_g, gain_g, lambda_s, gain_s,  dir_s,  W_cut,   roi):
+    @cuda.jit("void(int32,int32[:,:],int32[:,:],float32[:],float32, float32,float32,  float32, float32,float32)", nopython=True)
+    def dowork (nfs_sq,   d_src_ar,  d_dst_ar,  weight_ar, sigma_g, gain_g, lambda_s, gain_s,  dir_s,  W_cut):
         # Work out i_src and i_dst based on the 2-D thread index
         i_src, i_dst = cuda.grid(2)
         twopi = float32(6.283185307)
@@ -375,24 +374,23 @@ def connectionFunc(srclocs,dstlocs,nfs,sigma_g,gain_g,lambda_s,gain_s,dir_s,W_cu
             # Testing the region of interest gives a slight speed up
             # (7 s vs 8 s) at a cost of having one extra parameter to
             # set.
-            if abs(xdist) < roi and abs(ydist) < roi:
-                # zdist = d_src_ar[i_src,2] - d_dst_ar[i_dst,2] # ignore z component for now
-                dist = math.sqrt(math.pow(xdist,2) + math.pow(ydist,2)) # + math.pow(zdist,2))
-                # Direction from source to dest
-                top = float32(d_dst_ar[i_dst,1]-d_src_ar[i_src,1])
-                bot = float32(d_dst_ar[i_dst,0]-d_src_ar[i_src,0])
-                dir_d = math.atan2 (top, bot)
-                # Find the projection of the source->dest direction onto the sine wave direction. Call this distance dprime.
-                dprime = dist*math.cos(dir_d + twopi - ((dir_s*twopi)/float32(360)));
-                # Use dprime to figure out what the sine weight is.
-                sine_weight = gain_s*math.sin(dprime*twopi/lambda_s);
-                gauss_weight = gain_g*math.exp(-0.5*math.pow(dist/sigma_g,2))
-                combined_weight = sine_weight * gauss_weight;
+            # zdist = d_src_ar[i_src,2] - d_dst_ar[i_dst,2] # ignore z component for now
+            dist = math.sqrt(math.pow(xdist,2) + math.pow(ydist,2)) # + math.pow(zdist,2))
+            # Direction from source to dest
+            top = float32(d_dst_ar[i_dst,1]-d_src_ar[i_src,1])
+            bot = float32(d_dst_ar[i_dst,0]-d_src_ar[i_src,0])
+            dir_d = math.atan2 (top, bot)
+            # Find the projection of the source->dest direction onto the sine wave direction. Call this distance dprime.
+            dprime = dist*math.cos(dir_d + twopi - ((dir_s*twopi)/float32(360)));
+            # Use dprime to figure out what the sine weight is.
+            sine_weight = gain_s*math.sin(dprime*twopi/lambda_s);
+            gauss_weight = gain_g*math.exp(-0.5*math.pow(dist/sigma_g,2))
+            combined_weight = sine_weight * gauss_weight;
 
-                if abs(combined_weight) > W_cut:
-                    tmp_w[offsidx] = float32(combined_weight)
-                    tmp_w[offsidx+1] = float32(i_src)
-                    tmp_w[offsidx+2] = float32(i_dst)
+            if abs(combined_weight) > W_cut:
+                tmp_w[offsidx] = float32(combined_weight)
+                tmp_w[offsidx+1] = float32(i_src)
+                tmp_w[offsidx+2] = float32(i_dst)
 
             # Sync threads, then access device memory with any results
             cuda.syncthreads()
@@ -440,7 +438,7 @@ def connectionFunc(srclocs,dstlocs,nfs,sigma_g,gain_g,lambda_s,gain_s,dir_s,W_cu
     time_start = int(round(time.time() * 1000))
 
     # Do the work of computing the connections:
-    dowork[blockspergrid, threadsperblock](nfs_sq, d_src_ar, d_dst_ar, d_weight_ar, sigma_g, gain_g, lambda_s, gain_s, dir_s, W_cut, roi)
+    dowork[blockspergrid, threadsperblock](nfs_sq, d_src_ar, d_dst_ar, d_weight_ar, sigma_g, gain_g, lambda_s, gain_s, dir_s, W_cut)
     time_donework = int(round(time.time() * 1000))
     print ("computed weights after {0} ms".format(time_donework - time_start));
 
