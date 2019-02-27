@@ -371,6 +371,10 @@ def connectionFunc(srclocs,dstlocs,nfs,sigma_g,gain_g,lambda_s,gain_s,dir_s,W_cu
             # Avoid many tanh, sin, cos, pow and exp computations for well-separated neurons:
             xdist = d_src_ar[i_src,0] - d_dst_ar[i_dst,0]
             ydist = d_src_ar[i_src,1] - d_dst_ar[i_dst,1]
+
+            # Testing the region of interest gives a slight speed up
+            # (7 s vs 8 s) at a cost of having one extra parameter to
+            # set.
             if abs(xdist) < roi and abs(ydist) < roi:
                 # zdist = d_src_ar[i_src,2] - d_dst_ar[i_dst,2] # ignore z component for now
                 dist = math.sqrt(math.pow(xdist,2) + math.pow(ydist,2)) # + math.pow(zdist,2))
