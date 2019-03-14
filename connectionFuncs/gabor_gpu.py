@@ -32,10 +32,15 @@ def connectionFunc(srclocs,dstlocs,nfs,sigma_g,gain_g,lambda_s,gain_s,dir_s,W_cu
     from operator import gt
     import time # for code profiling
 
-    # Shifts index to avoid bank conflicts (on GTX1070)
+    # Shifts index to avoid bank conflicts (CC 6.1)
     @cuda.jit(device=True)
     def shifted_idx (idx):
-        num_banks = 16 # 16 and 768 works for GTX1070/Compute capability 6.1; makes 48 KB of shared memory. GTX 1080 May have 96 KB; thus double but it's still CC 6.1.
+         # 16 and 768 works for GTX1070,1080 and 1080Ti with Compute
+         # capability 6.1; makes 48 KB of shared memory. This is the
+         # maximum that can be allocated with non-dynamic shared
+         # memory. GTX 1080 apparently has 96 KB but it's still CC
+         # 6.1.
+        num_banks = 16
         bank_width_int32 = 768
         # max_idx = (bank_width_int32 * num_banks)
         idx_idiv_num_banks = idx // num_banks

@@ -16,17 +16,16 @@ function vsview (data, t)
     vssurf(5, data, 'V2_r_lines', t, 1)
     vssetgrid ([3 2]);
 
-    tl = 0.01
-    vssurf(6, data, 'V2_pPp_rPr', t, 1, tl, 0)
+    vssurf(6, data, 'V2_pPp_rPr', t, 1)
     vssetgrid ([-1 1]);
 
-    vssurf(7, data, 'V2_pPp_rMr', t, 1, tl, 0)
+    vssurf(7, data, 'V2_pPp_rMr', t, 1)
     vssetgrid ([0 1]);
 
-    vssurf(8, data, 'V2_pMp_rPr', t, 1, tl, 0)
+    vssurf(8, data, 'V2_pMp_rPr', t, 1)
     vssetgrid ([1 1]);
 
-    vssurf(9, data, 'V2_pMp_rMr', t, 1, tl, 0)
+    vssurf(9, data, 'V2_pMp_rMr', t, 1)
     vssetgrid ([2 1]);
 
 end

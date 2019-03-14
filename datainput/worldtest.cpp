@@ -21,16 +21,19 @@ std::ofstream DBGSTREAM;
 
 void readLuminanceFile (WorldFrame& wf)
 {
+    ifstream jsonfile ("luminances.json", ifstream::binary);
     Json::Value root;
-    Json::Reader reader;
-    std::ifstream jsonfile ("luminances.json", std::ifstream::binary);
+    string errs;
+    Json::CharReaderBuilder rbuilder;
+    rbuilder["collectComments"] = false;
 
-    bool parsingSuccessful = reader.parse (jsonfile, root);
+    bool parsingSuccessful = Json::parseFromStream (rbuilder, jsonfile, &root, &errs);
     if (!parsingSuccessful) {
         // report to the user the failure and their locations in the document.
-        cerr << "Failed to parse JSON luminances: " << reader.getFormattedErrorMessages();
+        cerr << "Failed to parse JSON: " << errs;
         return;
     }
+
     const Json::Value plugins = root["luminances"];
     for (int index = 0; index < plugins.size(); ++index) {  // Iterates over the sequence elements.
         Json::Value v = plugins[index];
