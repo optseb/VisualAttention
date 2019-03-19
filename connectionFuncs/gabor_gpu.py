@@ -98,7 +98,7 @@ def connectionFunc(srclocs,dstlocs,nfs,sigma_g,gain_g,lambda_s,gain_s,dir_s,W_cu
         def detect_nonzero (weight_ar_, nonzero_ar_, arraysz):
             thid = cuda.threadIdx.x + (cuda.blockIdx.x*cuda.blockDim.x)
             if thid < arraysz:
-                nonzero_ar_[thid] = 1 if weight_ar_[thid] > 0.0 else 0
+                nonzero_ar_[thid] = 1 if abs(weight_ar_[thid]) > 0.0 else 0
                 # debug:
                 #if nonzero_ar_[thid] == 1:
                 #    print ('nonzero_ar_[{0}] = {1}, weight_ar_[{0}] = {2}'.format(thid, nonzero_ar_[thid], weight_ar_[thid]))
@@ -229,7 +229,7 @@ def connectionFunc(srclocs,dstlocs,nfs,sigma_g,gain_g,lambda_s,gain_s,dir_s,W_cu
         def extract_nonzero (d_weight_ar, weight_sz, d_scan_ar, __d_out, __nfs_sq):
             thid = cuda.threadIdx.x + (cuda.blockIdx.x*cuda.blockDim.x)
             #print ('thread id: {0}, weight_sz: {1}'.format(thid, weight_sz))
-            if thid < weight_sz and d_weight_ar[thid] > 0.0:
+            if thid < weight_sz and abs(d_weight_ar[thid]) > 0.0:
                 # Populate d_out in the correct format:
                 src_idx = thid%__nfs_sq
                 dst_idx = thid//__nfs_sq
