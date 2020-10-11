@@ -1,0 +1,272 @@
+% This is an example of using latex for a paper/report of specified
+% size/layout. It's useful if you want to provide a PDF that looks
+% like it was made in a normal word processor.
+
+% While writing, don't stop for errors
+\nonstopmode
+
+% Use the article doc class, with an 11 pt basic font size
+\documentclass[11pt, a4paper]{article}
+
+% Makes the main font Nimbus Roman, a Times New Roman lookalike:
+%\usepackage{mathptmx}% http://ctan.org/pkg/mathptmx
+% OR use this for proper Times New Roman (from msttcorefonts package
+% on Ubuntu). Use xelatex instead of pdflatex to compile:
+\usepackage{fontspec}
+\usepackage{xltxtra}
+\usepackage{xunicode}
+\defaultfontfeatures{Scale=MatchLowercase,Mapping=tex-text}
+\setmainfont{Times New Roman}
+
+% Set margins
+\usepackage[margin=2.5cm]{geometry}
+
+% Multilingual support
+\usepackage[english]{babel}
+
+% Nice mathematics
+\usepackage{amsmath}
+
+% Control over maketitle
+\usepackage{titling}
+
+% Section styling
+\usepackage{titlesec}
+
+% Ability to use colour in text
+\usepackage[usenames]{color}
+
+% For the \degree symbol
+\usepackage{gensymb}
+
+% Allow includegraphics and nice wrapped figures
+\usepackage{graphicx}
+\usepackage{wrapfig}
+\usepackage[outercaption]{sidecap}
+
+% Set formats using titlesec
+\titleformat*{\section}{\bfseries\rmfamily}
+\titleformat*{\subsection}{\bfseries\itshape\rmfamily}
+
+% thetitle is the number of the section. This sets the distance from
+% the number to the section text.
+\titlelabel{\thetitle.\hskip0.3em\relax}
+
+% Set title spacing with titlesec, too.  The first {1.0ex plus .2ex
+% minus .7ex} sets the spacing above the section title. The second
+% {-1.0ex plus 0.2ex} sets the spacing the section title to the
+% paragraph.
+\titlespacing{\section}{0pc}{1.0ex plus .2ex minus .7ex}{-1.1ex plus 0.2ex}
+
+%% Trick to define a language alias and permit language = {en} in the .bib file.
+% From: http://tex.stackexchange.com/questions/199254/babel-define-language-synonym
+\usepackage{letltxmacro}
+\LetLtxMacro{\ORIGselectlanguage}{\selectlanguage}
+\makeatletter
+\DeclareRobustCommand{\selectlanguage}[1]{%
+  \@ifundefined{alias@\string#1}
+    {\ORIGselectlanguage{#1}}
+    {\begingroup\edef\x{\endgroup
+       \noexpand\ORIGselectlanguage{\@nameuse{alias@#1}}}\x}%
+}
+\newcommand{\definelanguagealias}[2]{%
+  \@namedef{alias@#1}{#2}%
+}
+\makeatother
+\definelanguagealias{en}{english}
+\definelanguagealias{eng}{english}
+%% End language alias trick
+
+%% Any aliases here
+\newcommand{\myalias}{Some text or something}
+% Emphasis and bold.
+\newcommand{\e}{\emph}
+\newcommand{\mycite}[1]{\cite{#1}}
+%% END aliases
+
+% Custom font defs
+% fontsize is \fontsize{fontsize}{linespacesize}
+\def\authorListFont{\fontsize{11}{11} }
+\def\corrAuthorFont{\fontsize{10}{10} }
+\def\affiliationListFont{\fontsize{11}{11}\itshape }
+\def\titleFont{\fontsize{14}{11} \bfseries }
+\def\textFont{\fontsize{11}{11} }
+\def\sectionHdrFont{\fontsize{11}{11}\bfseries}
+\def\bibFont{\fontsize{10}{10} }
+\def\captionFont{\fontsize{10}{10} }
+
+% Caption font size to be small.
+\usepackage[font=small,labelfont=bf]{caption}
+
+\def\firstAuthorLast{James {et~al.}}
+
+% Affiliations
+\def\Address{\\
+\affiliationListFont 1 Department of Psychology,  The University of Sheffield, Sheffield, UK \\
+}
+
+% The Corresponding Author should be marked with an asterisk. Provide
+% the exact contact address (this time including street name and city
+% zip code) and email of the corresponding author
+\def\corrAuthor{Seb James}
+\def\corrAddress{Department of Psychology, The University of Sheffield,
+  Western Bank, Sheffield, S10 2TP, UK}
+\def\corrEmail{seb.james@sheffield.ac.uk}
+
+% Figure out the font for the author list..
+\def\Authors{\authorListFont Sebastian James\,$^{*}$,
+ \Address \\
+  \corrAuthorFont $^{*}$ Correspondence: \corrEmail}
+
+% No page numbering please
+\pagenumbering{gobble}
+
+% A trick to get the bibliography to show up with 1. 2. etc in place
+% of [1], [2] etc.:
+\makeatletter
+\renewcommand\@biblabel[1]{#1.}
+\makeatother
+
+% reduce separation between bibliography items if not using natbib:
+\let\OLDthebibliography\thebibliography
+\renewcommand\thebibliography[1]{
+  \OLDthebibliography{#1}
+  \setlength{\parskip}{0pt}
+  \setlength{\itemsep}{0pt plus 0.3ex}
+}
+
+% Set correct font for bibliography (doesn't work yet)
+%\renewcommand*{\bibfont}{\bibFont}
+
+% No paragraph indenting to match the VPH format
+\setlength{\parindent}{0pt}
+
+% Skip a line after paragraphs
+\setlength{\parskip}{0.5\baselineskip}
+\onecolumn
+
+% titling definitions
+\pretitle{\begin{center}\titleFont}
+\posttitle{\par\end{center}\vskip 0em}
+\preauthor{ % Fonts are set within \Authors
+        \vspace{-1.1cm} % Bring authors up towards title
+        \begin{center}
+        \begin{tabular}[t]{c}
+}
+\postauthor{\end{tabular}\par\end{center}}
+
+% Define title, empty date and authors
+\title {Using the GPU to compute connection functions in neurophysiologically
+        realistic neural networks}
+\date{} % No date please
+\author{\Authors}
+
+%% END OF PREAMBLE
+
+\begin{document}
+
+\setlength{\droptitle}{-1.8cm} % move the title up a suitable amount
+\maketitle
+
+\vspace{-1.8cm} % HACK bring the introduction up towards the title. It
+                % would be better to do this with titling in \maketitle
+
+\section{Introduction}
+
+% Add your figure
+%\begin{wrapfigure}{r}{0.4\textwidth}
+%\includegraphics[width=0.4\textwidth]{./figures/somefigure.png}
+%\caption{A wrapped figure example.}
+%\vspace{-10pt}
+%\label{model_overview}
+%\end{wrapfigure}
+
+%The enormous value of the games industry has ensured that development of the
+%GPU has been sustained and prolonged, in contrast to other non-standard chips
+%such as neuromorphic chips (cite) and asynchronous chips (cite. really?
+%perhaps these are in use more than I think. ask Mike).
+
+The graphical processing unit (GPU) is a specialised processer designed to
+carry out thousands of parallel computations. The need to process graphical
+scenes for computer games and movies has motivated sustained investment in the
+development of these devices which have contributed to a huge growth in both
+industries. A highly parallel processor is ideally suited for computer
+graphics because generating the image for the monitor provides the perfect
+parallelizable problem; it consists of millions of pixels, each of which must
+have its 3 colours specified to form an image. For a 1080p monitor, that's 6
+million parallel tasks. The beauty of the problem is that the final
+integration of the
+\emph{meaning} of these 6 million results is performed by the gamer's brain! In
+contrast, the solution of most mathematical problems requires `the pixels to
+talk to one another': the computational elements must transfer information in
+order to deliver a final result or to update variables at every timestep of a
+simulated system. Information transfer is a task to which the GPU is, \emph{by
+design} less well suited.
+%As a result, while the GPU is a wonderful tool for certain
+%computational studies, for many, the traditional CPU is often a better tool.
+
+%The parallel nature of
+%the GPU chips, and the dedication of a large proportion of the chip area to
+%computation (as opposed to other features such as data pipelining (?)) allow
+%them to outperform traditional processors by about an order of magnitude given
+%a suitably parallelizable task. As an example, my work laptop (marketed as a
+%gaming laptop) has a CPU capable of 500 GFlops and a GPU which can achieve
+%roughly 7000 Gflops.
+
+In spite of this drawback, from about the mid-2000s researchers began to
+explore the use of GPUs for general purpose computation, seeking to identify
+those problems which would benefit most from the GPU's parallel computational
+power.  Artificial neural networks (ANNs) have provided a well known success,
+seeding an entire `deep learning' industry. Here, the GPU speed-up of the
+back-propapagation of error makes possible the training of very large networks
+that can solve impressively difficult problems such as driving a
+car~\cite{bojarski_end_2016,bojarski_explaining_2017}, playing board games
+such as chess~\cite{thrun_learning_1995,david_deepchess_2016} or Go~\cite{silver_general_2018} and console games such as
+Pong~\cite{mnih_playing_2013}. Note that the GPU significantly accelerates
+the \emph{training} of the network, rather the execution of the network
+post-training.
+
+Researchers in the field of computational neuroscience have also explored the
+use of the GPU to simulate neurophysiologically realistic neural networks.
+These generally involve a complex neuron model in which the cell's membrane
+voltage and the release of numerous neurotransmitters may be modelled to
+understand the network's behaviour. The benefit which the GPU can offer
+computational neuroscience depends on the complexity of the neuron model and
+the connectivity of the network; $N$ neurons in a network can be simulated in
+parallel by $N$ processing threads for one timestep before their outputs must
+be transferred according to the connectivity of the network. The GPU is
+well-suited to the parallel execution of the neuron models, but not for the
+transfer of signals, which requires that GPU threads coordinate memory
+accesses. The best speed-ups reported involve simulation of complex,
+multi-compartment models~\cite{stimberg_brian2genn_2020}. Results are less
+favourable for networks involving the more parsimonious neuron models often
+employed \emph{for their speed and efficiency} in computational neuroscience
+studies \cite{nageswaran_configurable_2009}. Given the significant additional
+complexity of GPU code development, adoption of GPU computation in
+computational neuroscience studies is by no means ubiquitous.
+
+However, there is one practical task in the development of neuroscience models
+which \emph{is} amenable to GPU acceleration: the computation of connectivity
+patterns. It is common to define the connection patterns between populations
+in a biological neural network model according to hypothesis or on the basis
+of experimental observations. The purpose of this letter is to claim that this
+application of the GPU should not be neglected and to give a sample
+implementation in python/Numba-cuda. The motivation for this work was the
+building in SpineCreator \cite{cope_spinecreator_2015,cope_spinecreator:_2016}
+of a visual attention model in which a number of neural populations serve as
+image maps, formed as 150 $\times$ 150 grids. Thus each population contains
+22,500 neurons. Projections from one population to another take the form of
+Gaussian projections, with spatial offsets [Fig].
+
+%\section*{Acknowledgements}
+%Acknowledge funders.
+
+\selectlanguage{English}
+\bibliographystyle{abbrvnotitle}
+% The bibliography NoTremor.bib is the one exported from Zotero.
+\bibliography{GPU}
+
+%%% Upload the *bib file along with the *tex file and PDF on
+%%% submission if the bibliography is not in the main *tex file
+
+\end{document}
