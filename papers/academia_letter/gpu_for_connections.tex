@@ -33,8 +33,38 @@
 % Section styling
 \usepackage{titlesec}
 
+% Syntax highlighted code listing
+\usepackage{listings}
+
 % Ability to use colour in text
 \usepackage[usenames]{color}
+% Colours for code
+%\usepackage{xcolor}
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codered}{rgb}{0.95,0.0,0.0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{1,1,1}
+\lstdefinestyle{mystyle}{
+    backgroundcolor=\color{backcolour},
+    commentstyle=\color{codered},
+    keywordstyle=\color{codepurple},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codegreen},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,
+    breaklines=true,
+    captionpos=b,
+    keepspaces=true,
+    numbers=left,
+    numbersep=5pt,
+    showspaces=false,
+    showstringspaces=false,
+    showtabs=false,
+    tabsize=2
+}
+\lstset{style=mystyle}
+
 
 % For the \degree symbol
 \usepackage{gensymb}
@@ -202,16 +232,6 @@ talk to one another': the computational elements must transfer information in
 order to deliver a final result or to update variables at every timestep of a
 simulated system. Information transfer is a task to which the GPU is, \emph{by
 design} less well suited.
-%As a result, while the GPU is a wonderful tool for certain
-%computational studies, for many, the traditional CPU is often a better tool.
-
-%The parallel nature of
-%the GPU chips, and the dedication of a large proportion of the chip area to
-%computation (as opposed to other features such as data pipelining (?)) allow
-%them to outperform traditional processors by about an order of magnitude given
-%a suitably parallelizable task. As an example, my work laptop (marketed as a
-%gaming laptop) has a CPU capable of 500 GFlops and a GPU which can achieve
-%roughly 7000 Gflops.
 
 In spite of this drawback, from about the mid-2000s researchers began to
 explore the use of GPUs for general purpose computation, seeking to identify
@@ -252,11 +272,112 @@ in a biological neural network model according to hypothesis or on the basis
 of experimental observations. The purpose of this letter is to claim that this
 application of the GPU should not be neglected and to give a sample
 implementation in python/Numba-cuda. The motivation for this work was the
-building in SpineCreator \cite{cope_spinecreator_2015,cope_spinecreator:_2016}
-of a visual attention model in which a number of neural populations serve as
-image maps, formed as 150 $\times$ 150 grids. Thus each population contains
-22,500 neurons. Projections from one population to another take the form of
-Gaussian projections, with spatial offsets [Fig].
+construction, in
+SpineCreator \cite{cope_spinecreator_2015,cope_spinecreator:_2016}, of a
+visual attention model in which a number of neural populations serve as image
+maps. Each population is formed into 150 $\times$ 150 grids. Thus each
+population contains 22,500 neurons. Projections from one population to another
+take the form of Gaussian projections [Fig]. These projections have the
+strongest weights where the source neurons and the destination neurons are
+closest; neurons in the centre of the source population project most strongly
+to those in the destination population. The weights drop off as the
+destination neurons become more distal from the source neurons, and below some
+threshold, the weights are set to zero. Examples can be found
+in \cite{james_integrating_2018}, Figs. 1C and 1D.
+
+Relatively few neurons project from a given source neuron to the destination
+population, but to actually determine which those are, it is necessary to
+evaluate the connection between every source/destination pair. In our model,
+this results in 22,500 $\times$ 22,500 $=$ 506,250,000 weight pairs. The
+projections in the model are variations on this theme; some have widening
+projections patterns; some have spatial offsets but the number of weight pairs
+is always the same.
+
+An example computation to be carried out is given below. This takes the
+SpineCreator connectionFunc format; a defined API for a python function which
+computes a weight table for the connection pattern. This connection function
+computes a `widening Gaussian'; the projection pattern widens along one axis
+of the (square) population, modelling the projection from the retina, with its
+high acuity fovea, to destination tissue such as the superior colliculus. As
+for all SpineCreator connection unctions, it passes an array of source neuron
+coordinates (src), an array of destination neuron coordinates, and a number of
+connection-specific parameters as arguments and expects a table of connections
+to be returned. This is a reducing operation; $5\times10^8$ possible
+connections are reduced down to a table consisting of perhaps a few hundred
+thousand non-negligible weights.
+
+\begin{lstlisting}[language=Python]
+def connectionFunc(src,dst,sigma_m,E2,sigma_0,fovshift,nfs,W_cut,offsd0p,offsd1r):
+  # Function arguments:
+  # src: an array of 3D coordinates of the locations of the source neurons
+  # dst: array of coordinates of the destination neurons
+  # sigma_m: The average width of the projection
+  # E2: A parameter
+  # fovshift: A foveal shift parameter
+  # nfs: The neural field size parameter - its value is 150
+  # W_cut: Minimum weight to be included in the output table
+  # offsd0p and offsd1r: Spatial offsets for the projection
+  import math
+  # The starting magnification factor
+  M_f_start = nfs/(E2*math.log((fovshift/(2*E2))+1))
+  i_src = 0 # index into src
+  out = [] # out will be filled with the output table and returned
+  for s in src:
+    i_dst = 0 # index into dst
+    # Compute the location of s, this defines what sigma will be.
+    # As r (as opp. to phi) increases, the sigma should increase.
+    # M_f is the function of r, aka s[1].
+    M_f = nfs/(E2*math.log(((1+s[1])/(2*E2))+1))
+    # Set some of M_f to 1 to ensure the fan-out starts at around the edge
+    # of the foveal region.
+    if (1+s[1]) < fovshift:
+      M_f = M_f_start
+    # Find the effective width of the Gaussian at this location:
+    _sigma = (sigma_m/M_f) - (sigma_m/M_f_start) + sigma_0
+    three_sigma = 3 * _sigma
+    # For each source neuron, loop over all destinations:
+    for d in dst:
+      # in-xy-plane distance (ignore s[2]/d[2])
+      xd = (s[0] - d[0] + offsd0p)
+      yd = (s[1] - d[1] + offsd1r)
+      if abs(xd) < three_sigma and abs(yd) < three_sigma:
+        # Compute distance from s to d:
+        dist = math.sqrt(math.pow(xd,2) + math.pow(yd,2))
+        # From distance compute gaussian weight:
+        gauss = math.exp(-0.5*math.pow(dist/_sigma,2))
+        # Add the weight to the output table only if it exceed the threshold, W_cut:
+        if gauss > W_cut:
+          conn = (i_src,i_dst,0,gauss)
+          out.append(conn)
+      i_dst = i_dst + 1
+    i_src = i_src + 1
+  return out
+# end connectionFunc
+\end{lstlisting}
+
+Execution of the listing above on a relatively modern CPU takes about four
+minutes. If the modeller wishes to change any parameter in the connection
+pattern it must be recomputed. The visual attention model which forms our
+example has at least ten projections which must be computed and so changing a
+parameter in the projections in the model could require nearly an hour of
+compute time and makes the model exceedingly tedious to work with.
+
+The majority of the time required for the computation above occurs in the
+middle loop over the destination neurons. \footnote{In fact, the example above
+halves the computation time by testing the distances and only carrying out the
+weight calculation for `nearby' neurons.} This maps very well onto a GPU as
+each computation is independent. However, at first sight, it would appear to
+be necessary to transfer the results to memory which the CPU can access, then
+carry out all 506,250,000 weight comparisons with \code{W\_cut} in order to
+build the reduced table of connections, losing any performance gain provided
+by the GPU! The solution is to make use of the \emph{parallel prefix scan}
+algorithm.
+
+\section*{Appendix}
+
+GPU widening Gaussian code listing.
+
+\lstinputlisting[language=Python]{../../connectionFuncs/offset_retgauss_gpu.py}
 
 %\section*{Acknowledgements}
 %Acknowledge funders.
