@@ -1,8 +1,9 @@
-# Import the connectionFunc
+# Import the GPU connectionFunc
 import offset_retgauss_gpu as org
+import time
 
 # Set up some parameters
-rowlen = 150
+rowlen = 180
 sigma_m = 100
 E2 = 2.5
 sigma_0 = 0.3
@@ -21,7 +22,10 @@ for i in range(0, rowlen):
         srclocs.append(srcloc)
 
 # Call the connectionFunc to generate result
+t_start = int(round(time.time() * 1000))
 result = org.connectionFunc (srclocs,srclocs,sigma_m,E2,sigma_0,fovshift,rowlen,W_cut,offsetd0p,offsetd1r,max_n_weights)
+t_end = int(round(time.time() * 1000))
+print ("Computing took {0} ms".format(t_end-t_start))
 print ("Done computing, result is a {0}".format(type(result)))
 
 # Show weight results for one particular source neuron projecting
