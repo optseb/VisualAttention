@@ -231,7 +231,7 @@ generally involve a complex neuron model in which the cell's membrane voltage,
 its ion channels and the release of various neurotransmitters may be modelled
 to understand the network's behaviour. Researchers have often focussed on the
 compute time required for
-\emph{simulation} of the network
+\emph{simulation of the network}
 rather than for finding the connection parameters. Connection parameters may
 be found by a variety of optimisation techniques, but the bottleneck is often
 the network simulation time. For simulation, the benefit which the GPU can
@@ -255,10 +255,10 @@ However, there is one practical task in the development of neuroscience models
 which \emph{is} amenable to GPU acceleration: the computation of connectivity
 patterns. It is common to define the connection patterns between populations
 in a biological neural network model according to hypothesis or on the basis
-of experimental observations, rather than by a from-scratch
-training. Parameterised mathematic functions such as Gaussians and Gabor
-functions are employed. The computation of connectivity patterns between
-populations consisting of realistic numbers of neural elements can be
+of experimental observations, rather than by a from-scratch training. Often,
+parameterised mathematical functions (Gaussians, Gabor functions etc.) are
+employed. The computation of connectivity patterns between populations
+consisting of realistic numbers of neural elements can, however, be
 computationally demanding. The purpose of this letter is to show that the GPU
 is well suited to the task and to give a sample implementation in Python. The
 motivation for this work was the construction, in
