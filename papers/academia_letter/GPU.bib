@@ -14,6 +14,60 @@
 	file = {Cope et al. - 2016 - SpineCreator a Graphical User Interface for the C.pdf:/home/seb/Zotero/storage/R5ZSF4F8/Cope et al. - 2016 - SpineCreator a Graphical User Interface for the C.pdf:application/pdf}
 }
 
+@article{dinkelbach_comparison_2012,
+	title = {Comparison of {GPU}-and {CPU}-implementations of mean-firing rate neural networks on parallel hardware},
+	volume = {23},
+	url = {http://informahealthcare.com/doi/abs/10.3109/0954898X.2012.739292},
+	number = {4},
+	urldate = {2014-09-19},
+	journal = {Network: Computation in Neural Systems},
+	author = {Dinkelbach, Helge Ülo and Vitay, Julien and Beuth, Frederik and Hamker, Fred H.},
+	year = {2012},
+	pages = {212--236},
+	file = {0954898X.2012.pdf:/home/seb/Zotero/storage/M3CSXT48/0954898X.2012.pdf:application/pdf}
+}
+
+@article{james_integrating_2018,
+	title = {Integrating {Brain} and {Biomechanical} {Models}—{A} {New} {Paradigm} for {Understanding} {Neuro}-muscular {Control}},
+	volume = {12},
+	issn = {1662-453X},
+	url = {https://www.frontiersin.org/articles/10.3389/fnins.2018.00039/full},
+	doi = {10.3389/fnins.2018.00039},
+	abstract = {To date, realistic models of how the central nervous system governs behaviour have been restricted in scope to the brain, brainstem or spinal column, as if these existed as disembodied organs. Further, the model is often exercised in relation to an in vivo physiological experiment with input comprising an impulse, a periodic signal or constant activation, and output as a pattern of neural activity in one or more neural populations. Any link to behaviour is inferred only indirectly via these activity patterns. We argue that to discover the principles of operation of neural systems, it is necessary to express their behaviour in terms of physical movements of a realistic motor system, and to supply inputs that mimic sensory experience. To do this with confidence, we must connect our brain models to neuro-muscular models and provide relevant visual and proprioceptive feedback signals, thereby closing the loop of the simulation. This paper describes an effort to develop just such an integrated brain and biomechanical system using a number of pre-existing models. It describes a model of the saccadic oculomotor system incorporating a neuromuscular model of the eye and its six extraocular muscles. The position of the eye determines how illumination of a retinotopic input population projects information about the location of a saccade target into the system. A pre-existing saccadic burst generator model was incorporated into the system, which generated motoneuron activity patterns suitable for driving the biomechanical eye. The model was demonstrated to make accurate saccades to a target luminance under a set of environmental constraints. Challenges encountered in the development of this model showed the importance of this integrated modelling approach. Thus, we exposed shortcomings in individual model components which were only apparent when these were supplied with the more plausible inputs available in a closed loop design. Consequently we were able to suggest missing functionality which the system would require to reproduce more realistic behaviour. The construction of such closed-loop animal models constitutes a new paradigm of computational neurobehaviour and promises a more thoroughgoing approach to our understanding of the brain's function as a controller for movement and behaviour.},
+	language = {English},
+	urldate = {2018-02-14},
+	journal = {Frontiers in Neuroscience},
+	author = {James, Sebastian S. and Papapavlou, Chris and Blenkinsop, Alexander and Cope, Alexander J. and Anderson, Sean R. and Moustakas, Konstantinos and Gurney, Kevin N.},
+	year = {2018},
+	keywords = {Biomechanics, Basal Ganglia, Saccades, Oculomotor Muscles, integrated brain and biomechanics, Neuromuscular Junction},
+	file = {James et al. - 2018 - Integrating Brain and Biomechanical Models—A New P.pdf:/home/seb/Zotero/storage/F6J2QZTY/James et al. - 2018 - Integrating Brain and Biomechanical Models—A New P.pdf:application/pdf}
+}
+
+@article{avramidis_optimisation_2017,
+	title = {Optimisation of an exemplar oculomotor model using multi-objective genetic algorithms executed on a {GPU}-{CPU} combination},
+	volume = {11},
+	issn = {1752-0509},
+	url = {https://doi.org/10.1186/s12918-017-0416-2},
+	doi = {10.1186/s12918-017-0416-2},
+	abstract = {Parameter optimisation is a critical step in the construction of computational biology models. In eye movement research, computational models are increasingly important to understanding the mechanistic basis of normal and abnormal behaviour. In this study, we considered an existing neurobiological model of fast eye movements (saccades), capable of generating realistic simulations of: (i) normal horizontal saccades; and (ii) infantile nystagmus – pathological ocular oscillations that can be subdivided into different waveform classes. By developing appropriate fitness functions, we optimised the model to existing experimental saccade and nystagmus data, using a well-established multi-objective genetic algorithm. This algorithm required the model to be numerically integrated for very large numbers of parameter combinations. To address this computational bottleneck, we implemented a master-slave parallelisation, in which the model integrations were distributed across the compute units of a GPU, under the control of a CPU.},
+	urldate = {2018-02-09},
+	journal = {BMC Systems Biology},
+	author = {Avramidis, Eleftherios and Akman, Ozgur E.},
+	month = mar,
+	year = {2017},
+	keywords = {High-performance computing, Infantile nystagmus, Mathematical modelling, Multi-objective genetic algorithms, Oculomotor control, Parameter optimisation, Systems biology},
+	pages = {40},
+	file = {Full Text PDF:/home/seb/Zotero/storage/ULYR8CWC/Avramidis and Akman - 2017 - Optimisation of an exemplar oculomotor model using.pdf:application/pdf;Snapshot:/home/seb/Zotero/storage/RDNQ2326/s12918-017-0416-2.html:text/html}
+}
+
+@misc{cope_spineml_2014,
+	title = {{SpineML}},
+	url = {https://github.com/SpineML/spineml/},
+	author = {Cope, Alex and Richmond, Paul},
+	year = {2014},
+	note = {RRID: SCR\_015641}
+}
+
 @misc{cope_spinecreator_2015,
 	title = {{SpineCreator}},
 	copyright = {GNU GPL},
@@ -161,7 +215,82 @@ Section: Report},
 	author = {Nageswaran, Jayram Moorkanikara and Dutt, Nikil and Krichmar, Jeffrey L. and Nicolau, Alex and Veidenbaum, Alexander V.},
 	month = jul,
 	year = {2009},
-	keywords = {CUDA, Data parallelism, Graphics processor, Izhikevich spiking neuron, STDP},
+	keywords = {STDP, CUDA, Data parallelism, Graphics processor, Izhikevich spiking neuron},
 	pages = {791--800},
 	file = {ScienceDirect Full Text PDF:/home/seb/Zotero/storage/JFA22LJC/Nageswaran et al. - 2009 - A configurable simulation environment for the effi.pdf:application/pdf;ScienceDirect Snapshot:/home/seb/Zotero/storage/GEKCZ76E/S0893608009001373.html:text/html}
+}
+
+@misc{anaconda_inc_numba_2012,
+	title = {Numba for {CUDA} {GPUs} documentation},
+	url = {https://numba.readthedocs.io/en/stable/cuda/index.html},
+	urldate = {2020-10-13},
+	author = {{Anaconda,~Inc.}},
+	year = {2012},
+	file = {Numba for CUDA GPUs — Numba 0.51.2-py3.7-linux-x86_64.egg documentation:/home/seb/Zotero/storage/LXD3D76D/index.html:text/html}
+}
+
+@misc{harris_chapter_2010,
+	title = {Chapter 39. {Parallel} {Prefix} {Sum} ({Scan}) with {CUDA}},
+	url = {https://developer.nvidia.com/gpugems/gpugems3/part-vi-gpu-computing/chapter-39-parallel-prefix-sum-scan-cuda},
+	language = {en},
+	urldate = {2020-10-13},
+	journal = {NVIDIA Developer},
+	author = {Harris, Mark and Sengupta, Shubhabrata and Garland, Michael and Owens, John D.},
+	year = {2010},
+	file = {Snapshot:/home/seb/Zotero/storage/BYIEWBDR/chapter-39-parallel-prefix-sum-scan-cuda.html:text/html}
+}
+
+@techreport{blelloch_prefix_1990,
+	address = {School of Computer Science},
+	type = {Technical {Report}},
+	title = {Prefix {Sums} and {Their} {Applications}},
+	abstract = {Experienced algorithm designers rely heavily on a set of building blocks and on the tools needed to put the blocks together into an algorithm. The understanding of these basic blocks and tools is therefore critical to the understanding of algorithms. Many of the blocks and tools needed for parallel algorithms extend from sequential algorithms, such as dynamic-programming and divide-and-conquer, but others are new. This paper introduces one of the simplest and most useful building blocks for parallel algorithms: the all-pre xsums operation. The paper de nes the operation, shows how to implement it on a P-RAM and illustrates many applications of the operation. In addition to being a useful building block, the all-pre x-sums operation is a good example of a computation that seems inherently sequential, but for which there is an e cient parallel algorithm.},
+	language = {en},
+	number = {CMU-CS-90-190},
+	institution = {Carnegie Mellon University},
+	author = {Blelloch, Guy E},
+	year = {1990},
+	pages = {25},
+	file = {Blelloch - Pre x Sums and Their Applications.pdf:/home/seb/Zotero/storage/CBKNWYIM/Blelloch - Pre x Sums and Their Applications.pdf:application/pdf}
+}
+
+@article{beyeler_gpu-accelerated_2015,
+	series = {Neurobiologically {Inspired} {Robotics}: {Enhanced} {Autonomy} through {Neuromorphic} {Cognition}},
+	title = {A {GPU}-accelerated cortical neural network model for visually guided robot navigation},
+	volume = {72},
+	issn = {0893-6080},
+	url = {http://www.sciencedirect.com/science/article/pii/S089360801500180X},
+	doi = {10.1016/j.neunet.2015.09.005},
+	abstract = {Humans and other terrestrial animals use vision to traverse novel cluttered environments with apparent ease. On one hand, although much is known about the behavioral dynamics of steering in humans, it remains unclear how relevant perceptual variables might be represented in the brain. On the other hand, although a wealth of data exists about the neural circuitry that is concerned with the perception of self-motion variables such as the current direction of travel, little research has been devoted to investigating how this neural circuitry may relate to active steering control. Here we present a cortical neural network model for visually guided navigation that has been embodied on a physical robot exploring a real-world environment. The model includes a rate based motion energy model for area V1, and a spiking neural network model for cortical area MT. The model generates a cortical representation of optic flow, determines the position of objects based on motion discontinuities, and combines these signals with the representation of a goal location to produce motor commands that successfully steer the robot around obstacles toward the goal. The model produces robot trajectories that closely match human behavioral data. This study demonstrates how neural signals in a model of cortical area MT might provide sufficient motion information to steer a physical robot on human-like paths around obstacles in a real-world environment, and exemplifies the importance of embodiment, as behavior is deeply coupled not only with the underlying model of brain function, but also with the anatomical constraints of the physical body it controls.},
+	language = {en},
+	urldate = {2020-10-14},
+	journal = {Neural Networks},
+	author = {Beyeler, Michael and Oros, Nicolas and Dutt, Nikil and Krichmar, Jeffrey L.},
+	month = dec,
+	year = {2015},
+	keywords = {GPU, Motion energy, MT, Obstacle avoidance, Robot navigation, Spiking neural network},
+	pages = {75--87},
+	file = {ScienceDirect Full Text PDF:/home/seb/Zotero/storage/P6SLTL9E/Beyeler et al. - 2015 - A GPU-accelerated cortical neural network model fo.pdf:application/pdf;ScienceDirect Snapshot:/home/seb/Zotero/storage/NIIQW52H/S089360801500180X.html:text/html}
+}
+
+@article{yavuz_genn_2016,
+	title = {{GeNN}: a code generation framework for accelerated brain simulations},
+	volume = {6},
+	copyright = {2016 The Author(s)},
+	issn = {2045-2322},
+	shorttitle = {{GeNN}},
+	url = {https://www.nature.com/articles/srep18854},
+	doi = {10.1038/srep18854},
+	abstract = {Large-scale numerical simulations of detailed brain circuit models are important for identifying hypotheses on brain functions and testing their consistency and plausibility. An ongoing challenge for simulating realistic models is, however, computational speed. In this paper, we present the GeNN (GPU-enhanced Neuronal Networks) framework, which aims to facilitate the use of graphics accelerators for computational models of large-scale neuronal networks to address this challenge. GeNN is an open source library that generates code to accelerate the execution of network simulations on NVIDIA GPUs, through a flexible and extensible interface, which does not require in-depth technical knowledge from the users. We present performance benchmarks showing that 200-fold speedup compared to a single core of a CPU can be achieved for a network of one million conductance based Hodgkin-Huxley neurons but that for other models the speedup can differ. GeNN is available for Linux, Mac OS X and Windows platforms. The source code, user manual, tutorials, Wiki, in-depth example projects and all other related information can be found on the project website http://genn-team.github.io/genn/.},
+	language = {en},
+	number = {1},
+	urldate = {2020-10-14},
+	journal = {Scientific Reports},
+	author = {Yavuz, Esin and Turner, James and Nowotny, Thomas},
+	month = jan,
+	year = {2016},
+	note = {Number: 1
+Publisher: Nature Publishing Group},
+	pages = {18854},
+	file = {Full Text PDF:/home/seb/Zotero/storage/9VTB7I9N/Yavuz et al. - 2016 - GeNN a code generation framework for accelerated .pdf:application/pdf;Snapshot:/home/seb/Zotero/storage/694BJSVT/srep18854.html:text/html}
 }
