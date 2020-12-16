@@ -28,12 +28,18 @@ cpu_am = [ 1647, 7105, 21836, 43691, 69051, 105198, 118240, 162258, 200905, 2616
 nfs_am = [ 50, 75, 100, 120, 135, 150, 155 ] # special for gpu_am
 gpu_am = [ 3040, 4011, 5605, 7252, 9024, 10892, 11475 ]
 
+# A few results for cube with an RTX 3090. Results in milliseconds,
+# taken from the penultimate script line 'Computing took xxxx ms'
+nfs_cube = [ 50, 150, 192, 212]
+gpu_cube = [ 2348, 6197, 9062, 11001]
+
 p=2 # power
 ax2 = F1.add_subplot(2,1,1)
 ax2.plot (np.power(nfs, p), np.log(np.divide(cpu_tb, 1000)), label='TR', color=col.black, linestyle='--', marker='s', markerfacecolor=col.black, markeredgecolor=col.white)
 ax2.plot (np.power(nfs, p), np.log(np.divide(cpu_am, 1000)), label='i9', color=col.black, marker='v', markerfacecolor=col.black, markeredgecolor=col.white)
 ax2.plot (np.power(nfs, p), np.log(np.divide(gpu_tb, 1000)), label='Quadro', color=col.dodgerblue2, linestyle='--', marker='o', markerfacecolor=col.black, markeredgecolor=col.white)
 ax2.plot (np.power(nfs_am, p), np.log(np.divide(gpu_am, 1000)), label='1080', color=col.dodgerblue2, marker='^', markerfacecolor=col.black, markeredgecolor=col.white)
+ax2.plot (np.power(nfs_cube, p), np.log(np.divide(gpu_cube, 1000)), label='3090', color=col.lightpink2, marker='^', markerfacecolor=col.black, markeredgecolor=col.white)
 ax2.set_xlabel('$n$')
 ax2.set_ylim((0,6.5))
 ax2.set_ylabel('log(t)')
