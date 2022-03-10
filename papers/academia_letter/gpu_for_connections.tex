@@ -285,7 +285,7 @@ pairs.  The creation of this table is a \emph{reducing operation}; 506,250,000
 possible connections are reduced down to a table consisting of a few
 million non-negligible weights.
 
-Appendix A gives example Python code which carries out this computation using
+Code A gives example Python code which carries out this computation using
 a general purpose CPU. It implements the \emph{SpineCreator connectionFunc
 API}, which defines arguments and a return data format for a Python function
 to compute the weight table. The example computes a \emph{widening
@@ -303,7 +303,7 @@ format~\cite{cope_spineml_2014}.
 \begin{figure}[h!]
 \includegraphics[width=0.95\textwidth]{./fig1.png}
 \caption{\textbf{A} Projection patterns computed using the widening gaussian
-defined in the appendix code. Projection weights are plotted for three source
+defined in the referenced code (Code A and B). Projection weights are plotted for three source
 neurons, whose locations are shown by large circles. This projection has an
 offset in the $\phi$ direction (\code{offsetd0p}) of -25. Other parameters:
 \code{sigma\_m}=100, \code{W\_cut}=0.008, \code{fshift}=4, \code{sigma\_0}=3. With
@@ -329,7 +329,7 @@ have enough RAM to compute patterns for $d>155$.}
 \label{f1}
 \end{figure}
 
-Execution of the listing in Appendix A takes about 100~s on a fast (Intel i9)
+Execution of the listing in Code A takes about 100~s on a fast (Intel i9)
 CPU. Although this is not a long wait, the modeller is likely to need to run
 the operation many times during model development, to experiment with
 different parameters in the connection patterns. The visual attention model
@@ -353,7 +353,7 @@ out the non-zero weights with a method called \emph{stream
 compaction}~\cite{harris_chapter_2010}. This involves summing 1 for each
 non-zero weight and using the cumulative sum as the `line address' in the
 output table. This way, the output table (which must be preallocated in
-memory) can be populated in parallel by the GPU. Appendix B gives an
+memory) can be populated in parallel by the GPU. Code B gives an
 implementation in Python, using Numba CUDA~\cite{anaconda_inc_numba_2012} to
 enable execution on NVIDIA GPU devices. The example follows the work-efficient
 parallel scan~\cite{blelloch_prefix_1990} given in~\cite{harris_chapter_2010},
@@ -364,7 +364,7 @@ definition. This ensures that
 \code{connectionFunc} can be pasted into the Python script window of
 SpineCreator. Within \code{connectionFunc}, there are two main code blocks:
 i) \code{dowork} which carries out parallel computation of the weights, and is
-similar in structure to the code in Appendix A; and
+similar in structure to the code in Code A; and
 ii) \code{reduce\_nonzero\_gpu}, which carries out the reduction operation,
 extracting the non-zero weights into the final output table.
 
@@ -378,15 +378,15 @@ problem size, $n$. The graph in Fig.\,\ref{f1}C shows that the GPU speed-up
 for larger populations tends towards about 18 times faster than the CPU code.
 
 It is obvious that the GPU implementation code is significantly more complex
-than that for the CPU in Appendix A. The implementation consists of roughly
-ten times as many lines of code. Appendix A was coded in less than an hour;
-Appendix B took weeks of effort. The order of magnitude increase in complexity
+than that for the CPU in Code A. The implementation consists of roughly
+ten times as many lines of code. Code A was coded in less than an hour;
+Code B took weeks of effort. The order of magnitude increase in complexity
 is justified by the order of magnitude speed-up achieved by the GPU code.
 %
 Additionally, much of the GPU solution code is `boilerplate': To change the
 form of the projection, perhaps to implement a new Gabor projection in place
 of the Gaussian connectivity, only the \code{dowork} function needs to be
-re-implemented. Appendix B thus provides to the computational neuroscience
+re-implemented. Code B thus provides to the computational neuroscience
 research community a useful template for GPU computation of connection
 patterns.
 %
@@ -399,8 +399,10 @@ patterns.
 %order to enable the generation of connection patterns between larger
 %populations.
 
-All code discussed in this letter is publicly available
-at \url{https://github.com/ABRG-Models/VisualAttention}.
+Code A refers
+to: \url{https://github.com/ABRG-Models/VisualAttention/blob/master/connectionFuncs/offset_retgauss_forpaper.py}
+
+Code B is: \url{https://github.com/ABRG-Models/VisualAttention/blob/master/connectionFuncs/offset_retgauss_gpu_forpaper.py}.
 
 \section*{Acknowledgements}
 I'd like to thank Paul Richmond at The University of Sheffield for originally
@@ -412,25 +414,5 @@ Across Lifetimes, from the James S McDonnell Foundation (grant
 \selectlanguage{English}
 \bibliographystyle{abbrvnotitle}
 \bibliography{GPU}
-
-\newpage
-\section*{Appendix A: CPU Code}
-
-CPU code defining a widening Gaussian projection with offset. The code listing
-here is taken from the VisualAttention
-file \code{connectionFuncs/offset\_retgauss.py}. It can be run standalone,
-by executing the script \code{connectionFuncs/offset\_retgauss\_run.py}.
-
-\lstinputlisting[language=Python]{../../connectionFuncs/offset_retgauss_forpaper.py}
-
-\newpage
-\section*{Appendix B: GPU Code}
-
-Code listing for the widening Gaussian connectivity pattern in Python Numba
-code. This is slightly edited version
-of \code{connectionFuncs/offset\_retgauss\_gpu.py} from the VisualAttention
-repository. Run with \code{connectionFuncs/offset\_retgauss\_gpu\_run.py}.
-
-\lstinputlisting[language=Python]{../../connectionFuncs/offset_retgauss_gpu_forpaper.py}
 
 \end{document}
