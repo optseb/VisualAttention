@@ -11,7 +11,7 @@
 #include <morph/HexGridVisual.h>
 #include <morph/HexGrid.h>
 
-#include <morph/nn/FeedForwardNet.h>
+#include "SpecialNet.h"
 
 int main()
 {
@@ -34,9 +34,7 @@ int main()
 
     // A feedforward network to display with the hexgrids.
     // A feedforward network is probably too simplistic? But feedforward connections are ok.
-    morph::nn::FeedForwardNet<float> ffn({hg0.num(),hg1.num(),hg2.num()});
-    // prbably need:
-    // morph::nn::SpecialNet<float> sn;
+    morph::nn::SpecialNet<float> ffn({hg0.num(),hg1.num(),hg2.num()});
 
     // data for the input
     morph::vVector<float> data0(hg0.num(), 0.0f);

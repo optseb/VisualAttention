@@ -8,8 +8,9 @@
  */
 #pragma once
 
-#include <morph/nn/FeedForwardConn.h>
+#include "NetConn.h"
 #include <morph/vVector.h>
+#include <utility>
 #include <iostream>
 #include <list>
 #include <vector>
@@ -28,9 +29,20 @@ namespace morph {
         template <typename T>
         struct SpecialNet
         {
-            //! Constructor takes a vector specifying the number of neurons in each layer (\a
-            //! layer_spec)
-            SpecialNet (const std::vector<unsigned int>& layer_spec)
+            //! Constructor takes a vector specifying the number of neurons in each
+            //! layer (\a layer_spec) AND a specification for the connections. Or, could
+            //! build both in so layers and connections is hardcoded (no).
+            //!
+            //! connection_spec looks like:
+            //! ([0], 1) layer 0 connects to layer 1
+            //! ([0], 2) layer 0 connects to layer 2
+            //! ([1,2], 3) layers 1 & 2 connect to layer 3
+            //! ([1,2], 4) layers 1 & 2 connect to layer 4
+            //! ([1,2], 5) layers 1 & 2 connect to layer 5
+            //! ([5,4], 1) layers 4 & 5 connect to layer 1
+            //!
+            SpecialNet (const std::vector<unsigned int>& layer_spec,
+                        const std::pair<morph::vVector<unsigned int>, unsigned int>& connection_spec)
             {
                 // Set up initial conditions
                 for (auto nn : layer_spec) {
@@ -43,16 +55,23 @@ namespace morph {
                     }
                     // Add the layer to this->neurons
                     this->neurons.push_back (lyr);
+
+                    // Add the connections according to connection_spec
+                    for (auto conn : connection_spec) {
+                        // do the wiring up
+                    }
+#if 0
                     // If there was a 'lastLayer', then add a connection between the layers
                     if (lastLayerSize != 0) {
                         auto l = this->neurons.end();
                         --l;
                         auto lm1 = l;
                         --lm1;
-                        morph::nn::FeedForwardConn<T> c(&*lm1, &*l);
+                        morph::nn::NetConn<T> c(&*lm1, &*l);
                         c.randomize();
                         this->connections.push_back (c);
                     }
+#endif
                 }
             }
 
@@ -175,10 +194,12 @@ namespace morph {
             T cost = T{0};
 
             //! A variable number of neuron layers, each of variable size. In this very
-            //! simple network, each 'neuron' is just an activation of type T
+            //! simple network, each 'neuron' is just an activation of type T. Note that
+            //! the connectivity between the layers is NOT assumed to be simple feedforward.
             std::list<morph::vVector<T>> neurons;
-            //! Connections. There should be neurons.size()-1 connection layers:
-            std::list<morph::nn::FeedForwardConn<T>> connections;
+            //! Connections in the network.
+            std::list<morph::nn::NetConn<T>> connections;
+
             //! The error (dC/dz) of the output layer
             morph::vVector<T> delta_out;
             //! The desired output of the network
