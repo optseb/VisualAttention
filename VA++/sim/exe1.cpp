@@ -17,7 +17,7 @@ int main()
 {
     morph::Visual v(1600, 1000, "HexGrid with a neural net", {-0.8,-0.8}, {.05,.05,.05}, 2.0f, 0.0f);
 
-    float gridsize = 0.5f; // at 0.8f, neural network uses about 8GB of RAM. At 1.0f 32 GB isn't enough.
+    float gridsize = 0.01f; // at 0.8f, neural network uses about 8GB of RAM. At 1.0f 32 GB isn't enough.
 
     morph::HexGrid hg0(0.01f, 3.0f, 0.0f, morph::HexDomainShape::Boundary);
     hg0.setCircularBoundary (gridsize);
@@ -34,7 +34,8 @@ int main()
 
     // A feedforward network to display with the hexgrids.
     // A feedforward network is probably too simplistic? But feedforward connections are ok.
-    morph::nn::SpecialNet<float> ffn({hg0.num(),hg1.num(),hg2.num()});
+    std::vector<std::pair<morph::vVector<unsigned int>, unsigned int>> connspec = {{{0},1},{{0},2}};
+    morph::nn::SpecialNet<float> ffn({hg0.num(),hg1.num(),hg2.num()}, connspec);
 
     // data for the input
     morph::vVector<float> data0(hg0.num(), 0.0f);
@@ -47,6 +48,8 @@ int main()
     auto n = ffn.neurons.begin();
     ffn.setInput (data0, theoutput);
     ffn.feedforward();
+
+    std::cout << "ffn: " << ffn << std::endl;
 
     morph::HexGridVisual<float>* hgv0 = new morph::HexGridVisual<float>(v.shaderprog, v.tshaderprog, &hg0, hg0_loc);
     hgv0->setScalarData (&*n++);

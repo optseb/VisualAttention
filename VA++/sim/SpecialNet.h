@@ -42,39 +42,34 @@ namespace morph {
             //! ([5,4], 1) layers 4 & 5 connect to layer 1
             //!
             SpecialNet (const std::vector<unsigned int>& layer_spec,
-                        const std::pair<morph::vVector<unsigned int>, unsigned int>& connection_spec)
+                        const std::vector<std::pair<morph::vVector<unsigned int>, unsigned int>>& connection_spec)
             {
-                // Set up initial conditions
+                // Set up layers according to layer_spec
                 for (auto nn : layer_spec) {
                     // Create, and zero, a layer containing nn neurons:
                     morph::vVector<T> lyr(nn);
                     lyr.zero();
-                    size_t lastLayerSize = 0;
-                    if (!this->neurons.empty()) { // Set lastLayerSize
-                        lastLayerSize = this->neurons.back().size();
-                    }
-                    // Add the layer to this->neurons
                     this->neurons.push_back (lyr);
+                }
 
-                    // Add the connections according to connection_spec
-                    for (auto conn : connection_spec) {
-                        // do the wiring up
-                    }
-#if 0
-                    // If there was a 'lastLayer', then add a connection between the layers
-                    if (lastLayerSize != 0) {
-                        auto l = this->neurons.end();
-                        --l;
-                        auto lm1 = l;
-                        --lm1;
-                        morph::nn::NetConn<T> c(&*lm1, &*l);
-                        c.randomize();
+                // Add the connections according to connection_spec
+                for (auto conn : connection_spec) {
+                    // conn.first is a vector of input neuron layer indices
+                    // conn.second is the single output neuron layer index
+                    for (auto iconn : conn.first) {
+                        auto l1 = this->neurons.begin();
+                        for (size_t i = 0; i < iconn; ++i, ++l1) {}
+                        auto l2 = this->neurons.begin();
+                        for (size_t i = 0; i < conn.second; ++i, ++l2) {}
+                        std::cout << "Connect " << iconn << " to " << conn.second << std::endl;
+                        morph::nn::NetConn<T> c(&*l1, &*l2);
+                        //c.randomize();
+                        c.setweight (T{0.5});
+                        c.setbias (T{0});
                         this->connections.push_back (c);
                     }
-#endif
                 }
             }
-
             //! Output the network as a string
             std::string str() const
             {
@@ -96,7 +91,17 @@ namespace morph {
             //! Update the network's outputs from its inputs
             void feedforward()
             {
-                for (auto& c : this->connections) { c.feedforward(); }
+                // For a neural net with neuron models, the first stop is to go through
+                // this->neurons calling update() on each layer.
+                for (auto& n : this->neurons) {
+                    // Do something with the vVector<T> data, which are the neurons current activations.
+                }
+
+                // Then run through the connections.
+                for (auto& c : this->connections) {
+                    std::cout << "Calling c.feedforward()...\n";
+                    c.feedforward();
+                }
             }
 
             //! A function which shows the difference between the network output and
@@ -197,6 +202,10 @@ namespace morph {
             //! simple network, each 'neuron' is just an activation of type T. Note that
             //! the connectivity between the layers is NOT assumed to be simple feedforward.
             std::list<morph::vVector<T>> neurons;
+            // A series of vectors with parameters for now
+            morph::vVector<T> tau; // Time constant for each neuron population
+            morph::vVector<T> noisegain; // noise gain for each neuron population
+
             //! Connections in the network.
             std::list<morph::nn::NetConn<T>> connections;
 
