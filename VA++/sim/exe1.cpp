@@ -35,7 +35,8 @@ int main()
     // A feedforward network to display with the hexgrids.
     // A feedforward network is probably too simplistic? But feedforward connections are ok.
     std::vector<std::pair<morph::vVector<unsigned int>, unsigned int>> connspec = {{{0},1},{{0},2}};
-    morph::nn::SpecialNet<float> ffn({hg0.num(),hg1.num(),hg2.num()}, connspec);
+    float tau = 1.0f;
+    morph::nn::SpecialNet<float> ffn({hg0.num(),hg1.num(),hg2.num()}, connspec, tau);
 
     // data for the input
     morph::vVector<float> data0(hg0.num(), 0.0f);
@@ -45,26 +46,29 @@ int main()
 
     morph::vVector<float> theoutput(hg2.num());
     theoutput.zero();
-    auto n = ffn.neurons.begin();
+    auto popout = ffn.p_outputs.begin();
     ffn.setInput (data0, theoutput);
+
+    std::cout << "Before feedforward, ffn: " << ffn << std::endl;
+
     ffn.feedforward();
 
-    std::cout << "ffn: " << ffn << std::endl;
+    std::cout << "After, ffn: " << ffn << std::endl;
 
     morph::HexGridVisual<float>* hgv0 = new morph::HexGridVisual<float>(v.shaderprog, v.tshaderprog, &hg0, hg0_loc);
-    hgv0->setScalarData (&*n++);
+    hgv0->setScalarData (&*popout++);
     hgv0->hexVisMode = morph::HexVisMode::HexInterp;
     hgv0->finalize();
     v.addVisualModel (hgv0);
 
     morph::HexGridVisual<float>* hgv1 = new morph::HexGridVisual<float>(v.shaderprog, v.tshaderprog, &hg1, hg1_loc);
-    hgv1->setScalarData (&*n++);
+    hgv1->setScalarData (&*popout++);
     hgv1->hexVisMode = morph::HexVisMode::Triangles;
     hgv1->finalize();
     v.addVisualModel (hgv1);
 
     morph::HexGridVisual<float>* hgv2 = new morph::HexGridVisual<float>(v.shaderprog, v.tshaderprog, &hg2, hg2_loc);
-    hgv2->setScalarData (&*n++);
+    hgv2->setScalarData (&*popout++);
     hgv2->hexVisMode = morph::HexVisMode::HexInterp; // Or morph::HexVisMode::Triangles for a smoother surface plot
     hgv2->finalize();
     v.addVisualModel (hgv2);

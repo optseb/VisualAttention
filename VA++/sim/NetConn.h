@@ -45,7 +45,7 @@ namespace morph {
             void commonInit (morph::vVector<T>* _out)
             {
                 this->out = _out;
-                this->N = this->out->size();
+                this->N = _out->size();
 
                 this->deltas.resize (this->ins.size());
                 for (unsigned int i = 0; i < this->deltas.size(); ++i) {
@@ -71,26 +71,33 @@ namespace morph {
             }
 
             // Input layer has total size M = m1 + m2 +... etc where m1, m2 are the lengths of the elements of ins
-            std::vector<morph::vVector<T>*> ins;
-            // Pointer to output layer. Size N.
+            std::vector<morph::vVector<T>*> ins; // Each input is the output of a SpecialNet population
+
+            // Old desc: Activation of the output neurons. Computed in feedforward, used in backprop
+            // z = sum(w.in) + b. Final output written into *out is the sigmoid(z). Size N.
+            // So in this scheme activations are HERE and these are the activations of the output layer...
+            //
+            // The 'activation' of this connection. This is the weights-times-the-inputs
+            // and becomes the output of this connection net that is fed into the output
+            // population's input. Glad we got that straight.
+            morph::vVector<T> z;
+
+            // This points to the output population's input storage.
             morph::vVector<T>* out;
-            // The size (i.e. number of neurons) in out.
+
+            // The size (i.e. number of neurons) in z.
             size_t N = 0;
             // The errors in the input layer of neurons. Size M = m1 + m2 +...
             std::vector<morph::vVector<T>> deltas;
             // Weights.
             // Order of weights: w_11, w_12,.., w_1M, w_21, w_22, w_2M, etc. Size M by N = m1xN + m2xN +...
             std::vector<morph::vVector<T>> ws;
-            // Biases. Size N.
+            // Biases. Size N. Used in feedforward nets. Here they could be used for connection noise.
             morph::vVector<T> b;
             // The gradients of cost vs. weights. Size M by N = m1xN + m2xN +...
             std::vector<morph::vVector<T>> nabla_ws;
             // The gradients of cost vs. biases. Size N.
             morph::vVector<T> nabla_b;
-            // Activation of the output neurons. Computed in feedforward, used in backprop
-            // z = sum(w.in) + b. Final output written into *out is the sigmoid(z). Size N.
-            // So in this scheme activations are HERE and these are the activations of the output layer...
-            morph::vVector<T> z; // So, need to leave activations in the SpecialNet class, as they have a memory.
 
             // Output as a string
             std::string str() const
@@ -100,7 +107,7 @@ namespace morph {
                 for (auto _in : ins) {
                     ss << _in->size() << ", ";
                 }
-                ss << "to an output layer, size " << out->size() << "\n";
+                ss << "to an output for this connection of size " << z.size() << "\n";
                 size_t ci = 0;
                 for (auto w : this->ws) {
                     ss << " Input " << ci++ << ": Weights: w" << w << "w (" << w.size() << ")\n";
@@ -133,7 +140,7 @@ namespace morph {
             // have to loop over each input population)
             void feedforward()
             {
-                // First, set the activations, z to 0
+                // First, set the output of this connection, z to 0
                 this->z.zero();
 
                 // Loop over input populations:
@@ -156,22 +163,24 @@ namespace morph {
                 }
 
                 // For each activation, z, apply the transfer function to generate the output, out
-                this->applyTransfer();
+                this->applyTransfer(); // Now this ONLY adds the biases
+
+                std::cout << "z[0] = " << this->z[0] << std::endl;
             }
 
             // For each activation, z, add the bias, then apply the sigmoid transfer function
             void applyTransfer()
             {
-                auto oiter = this->out->begin();
+                //auto oiter = this->out->begin();
                 auto biter = this->b.begin();
                 for (size_t j = 0; j < this->N; ++j) {
                     this->z[j] += *biter++;
-                    *oiter++ = T{1} / (T{1} + std::exp(-z[j])); // out = sigmoid(z+bias)
+                    //*oiter++ = T{1} / (T{1} + std::exp(-z[j])); // out = sigmoid(z+bias)
                 }
             }
 
             // The content of *NetConn::out is sigmoid(z^l+1). \return has size N
-            morph::vVector<T> sigmoid_prime_z_lplus1() { return (*out) * (-(*out)+T{1}); }
+            // morph::vVector<T> sigmoid_prime_z_lplus1() { return (*out) * (-(*out)+T{1}); }
 
             // The content of *NetConn::in is sigmoid(z^l). \return has size M = m1 + m2 +...
             std::vector<morph::vVector<T>> sigmoid_prime_z_l()
@@ -183,6 +192,7 @@ namespace morph {
                 return rtn;
             }
 
+#if 0 // No backprop for now with this network
             /*
              * Before calling backprop, work out which of the inputs in the 'next'
              * connection layer is relevant to the output of this connection layer.
@@ -257,6 +267,7 @@ namespace morph {
                     }
                 }
             }
+#endif
         };
 
         // Stream operator
