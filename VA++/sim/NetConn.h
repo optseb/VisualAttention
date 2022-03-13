@@ -112,6 +112,8 @@ namespace morph {
                 for (auto w : this->ws) {
                     ss << " Input " << ci++ << ": Weights: w" << w << "w (" << w.size() << ")\n";
                 }
+                ss << "z = " << z << std::endl;
+#if 0
                 ci = 0;
                 for (auto nabla_w : this->nabla_ws) {
                     ss << " Input " << ci++ << ": nabla_w:nw" << nabla_w << "nw (" << nabla_w.size() << ")\n";
@@ -122,6 +124,7 @@ namespace morph {
                 for (auto delta : this->deltas) {
                     ss << " Input " << ci++ << ": delta  :  " << delta << "\n";
                 }
+#endif
                 return ss.str();
             }
 
@@ -133,21 +136,33 @@ namespace morph {
             }
 
             // Set weight/bias to a scalar for all connections
-            void setweight(T _w) { for (auto& w : this->ws) { w.set_from(_w); } }
+            void setweight_alltoall (T _w) { for (auto& w : this->ws) { w.set_from(_w); } }
+            // Ok, so I really need the weight setting code even to debug this first version...
+            void setweight_onetoone (T _w) {
+                for (auto& w : this->ws) { // w is a morph::vVector<T>
+                    for (size_t i = 0; i < (w.size()/this->N); i++) {
+                        w[(i*this->N)+i] = _w;
+                    }
+                }
+            }
+
             void setbias(T _b) { this->b.set_from(_b); }
 
             // Feed-forward compute. z[i] = in[0,..,M-1] . w[i,..,i+M-1] + b[i] (but
             // have to loop over each input population)
             void feedforward()
             {
+                std::cout << "NetConn::feedforward()\n";
                 // First, set the output of this connection, z to 0
                 this->z.zero();
 
                 // Loop over input populations:
                 for (size_t i = 0; i < this->ins.size(); ++i) {
                     // A morph::vVector for a 'part of w'
+                    std::cout << "*this->ins["<<i<<"] = " << *this->ins[i] << std::endl;
                     morph::vVector<T>* _in = this->ins[i];
                     size_t m = _in->size();// Size m[i]
+                    std::cout << "m = " << m << std::endl;
                     morph::vVector<T> wpart(m);
                     // Get weights, outputs and biases iterators
                     auto witer = this->ws[i].begin();
@@ -155,8 +170,10 @@ namespace morph {
                     for (size_t j = 0; j < this->N; ++j) { // Each output
                         // Copy part of weights to wpart (M elements):
                         std::copy (witer, witer+m, wpart.begin());
+                        std::cout << "wpart: " << wpart << " dot " << (*ins[i]) << std::endl;
                         // Compute/accumulate dot product with input
                         this->z[j] += wpart.dot (*ins[i]);
+                        std::cout << "Set z["<<j<<"] to " << z[j] << std::endl;
                         // Move to the next part of the weight matrix for the next loop
                         witer += m;
                     }
@@ -164,8 +181,6 @@ namespace morph {
 
                 // For each activation, z, apply the transfer function to generate the output, out
                 this->applyTransfer(); // Now this ONLY adds the biases
-
-                std::cout << "z[0] = " << this->z[0] << std::endl;
             }
 
             // For each activation, z, add the bias, then apply the sigmoid transfer function

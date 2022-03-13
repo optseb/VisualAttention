@@ -55,9 +55,8 @@ namespace morph {
                 }
                 this->tau.resize(layer_spec.size());
                 this->tau.set_from (_tau);
-                //std::cout << "tau vector: " << this->tau << " set from " << _tau <<  std::endl;
-                this->noise_gain.resize(layer_spec.size());
-                this->noise_gain.set_from (T{0});
+                this->noisegain.resize(layer_spec.size());
+                this->noisegain.set_from (T{0});
 
                 // Add the connections according to connection_spec
                 for (auto conn : connection_spec) {
@@ -70,15 +69,14 @@ namespace morph {
                         for (size_t i = 0; i < conn.second; ++i, ++l2) {}
                         std::cout << "Connect " << iconn << "(pop. output) to " << conn.second << " (pop. input)"<< std::endl;
                         morph::nn::NetConn<T> c(&*l1, &*l2);
-
                         // Set weights up
-                        c.setweight (T{0.5});
+                        c.setweight_onetoone (T{1});
                         c.setbias (T{0});
-
                         this->connections.push_back (c);
                     }
                 }
             }
+
             //! Output the network as a string
             std::string str() const
             {
@@ -89,11 +87,12 @@ namespace morph {
                     if (i>0 && c != this->connections.end()) {
                         ss << *c++;
                     }
-                    ss << "Layer " << i++ << ":  "  << n << "\n";
+                    ss << "Layer activation " << i++ << ":  "  << n << "\n";
                 }
-                ss << "Target output: " << this->desiredOutput << "\n";
-                ss << "Delta out: " << this->delta_out << "\n";
-                ss << "Cost:      " << this->cost << "\n";
+                i = 0;
+                for (auto n : this->p_outputs) {
+                    ss << "Layer output " << i++ << ":  "  << n << "\n";
+                }
                 return ss.str();
             }
 
@@ -102,28 +101,38 @@ namespace morph {
             {
                 // Copy result from each connection to inputs of populations first.
                 for (auto& c : this->connections) {
+                    std::cout << "One connection...\n";
                     std::vector<T>& _z = c.z; // FIXME. IF _z is morph::vVector, can't
                                               // call _out.set_from(_z). That's a fix
                                               // for morph/vVector.h
-                    morph::vVector<T>& _out = *(c.out);
-                    _out.set_from (_z);
+                    c.out->set_from (_z);
+                    for (auto ii : *c.out) {
+                        std::cout << "c.out[]: " << ii << std::endl;
+                    }
                 }
 
                 // For a neural net with neuron models, the first stop is to go through
                 // this->neurons calling update() on each layer.
+                std::cout << "Population inputs...\n";
+                for (auto pin : this->p_inputs) {
+                    std::cout << pin << std::endl;
+                }
                 auto p_in = this->p_inputs.begin();
                 auto p_act = this->p_activations.begin();
                 auto p_out = this->p_outputs.begin();
                 // Opportunity for parallel ops here, but prob. not worthwhile
-                //for (auto& p_act : this->p_activations) {
                 for (size_t i = 0; i < this->tau.size(); ++i) {
-                    // Apply inputs to act (da/dt
+                    // Apply inputs to act (da/dt)
+                    std::cout << "(*p_act) = " <<  (*p_act) << std::endl;
+                    std::cout << "(*p_in) = " <<  (*p_in) << std::endl;
                     (*p_act) += (*p_in - *p_act)/this->tau[i];
                     // Apply transfer function to set the output
                     for (size_t i = 0; i < p_out->size(); ++i) {
+                        std::cout << "(*p_act)["<<i<<"] = " <<  ((*p_act)[i]) << std::endl;
                         (*p_out)[i] = (*p_act)[i] > T{0} ? std::tanh((*p_act)[i]) : T{0};
                         std::cout << "*p_out[i="<<i<<"] = " << (*p_out)[i] << " from activation = " << (*p_act)[i] << std::endl;
                     }
+                    ++p_in; ++p_out; ++p_act;
                 }
 
                 // Then run through the connections.
@@ -134,99 +143,20 @@ namespace morph {
                 }
             }
 
-            //! A function which shows the difference between the network output and
-            //! desiredOutput for debugging
-            void evaluate (const std::vector<morph::vVector<float>>& ins,
-                           const std::vector<morph::vVector<float>>& outs)
-            {
-                auto op = outs.begin();
-                for (auto ir : ins) {
-                    // Set input and output
-                    this->p_outputs.front() = ir;
-                    this->desiredOutput = *op++;
-                    // Compute network and cost
-                    this->feedforward();
-                    float c = this->computeCost();
-                    std::cout << "Input " << ir << " --> " << this->p_outputs.back() << " cf. " << this->desiredOutput << " (cost: " << c << ")\n";
-                }
-            }
-
-            //! Evaluate against the Mnist test image set
-            unsigned int evaluate (const std::multimap<unsigned char, morph::vVector<float>>& testData, int num=10000)
-            {
-                // For each image in testData, compute cost
-                float evalcost = 0.0f;
-                unsigned int numMatches = 0;
-                int count = 0;
-                for (auto img : testData) {
-                    unsigned int key = static_cast<unsigned int>(img.first);
-                    // Set input
-                    this->p_outputs.front() = img.second;
-                    // Set output
-                    this->desiredOutput.zero();
-                    this->desiredOutput[key] = 1.0f;
-                    // Update
-                    this->feedforward();
-                    evalcost += this->computeCost();
-                    // Success?
-                    if (this->p_outputs.back().argmax() == key) {
-                        ++numMatches;
-                    }
-                    ++count;
-                    if (count >= num) {
-                        break;
-                    }
-                }
-                return numMatches;
-            }
-#if 0
-            //! Determine the error gradients by the backpropagation method. NB: Call
-            //! computeCost() first
-            void backprop()
-            {
-                // Notation follows http://neuralnetworksanddeeplearning.com/chap2.html
-                // The output layer is special, as the error in the output layer is given by
-                //
-                // delta^L = grad_a(C) 0 sigma_prime(z^L)
-                //
-                // whereas for the intermediate layers
-                //
-                // delta^l = w^l+1 . delta^l+1 0 sigma_prime (z^l)
-                //
-                // (where 0 signifies hadamard product, as implemented by vVector's operator*)
-                // delta = dC_x/da() * sigmoid_prime(z_out)
-                auto citer = this->connections.end();
-                --citer; // Now points at output layer
-                citer->backprop (this->delta_out); // Layer L delta computed
-                // After the output layer, loop through the rest of the layers:
-                for (;citer != this->connections.begin();) {
-                    auto citer_closertooutput = citer--;
-                    // Now citer is closer to input
-                    citer->backprop (citer_closertooutput->deltas[0]);
-                }
-            }
-#endif
             //! Set up a population's current activations along with desired output
             void setInput (const morph::vVector<T>& theInput, const morph::vVector<T>& theOutput)
             {
                 *(this->p_activations.begin()) = theInput;
+                auto p_act = this->p_activations.begin();
+                this->p_outputs.resize (this->p_activations.size());
+                auto p_out = this->p_outputs.begin();
+                // Apply transfer function to set the output based on these activations
+                for (size_t i = 0; i < p_out->size(); ++i) {
+                    (*p_out)[i] = (*p_act)[i] > T{0} ? std::tanh((*p_act)[i]) : T{0};
+                    std::cout << "setInput(): *p_out[i="<<i<<"] = " << (*p_out)[i] << " from activation = " << (*p_act)[i] << std::endl;
+                }
                 this->desiredOutput = theOutput;
             }
-
-#if 0
-            //! Compute the cost for one input and one desired output
-            T computeCost()
-            {
-                // Here is where we compute delta_out:
-                this->delta_out = (this->p_outputs.back()-desiredOutput) * (this->connections.back().sigmoid_prime_z_lplus1());
-                // And the cost:
-                T l = (desiredOutput-this->neurons.back()).length();
-                this->cost = T{0.5} * l * l;
-                return this->cost;
-            }
-#endif
-            //! What's the cost function of the current output? Computed in computeCost()
-            T cost = T{0};
 
             //! A variable number of neuron layers, each of variable size. In this very
             //! simple network, each 'neuron' is just an activation of type T. Note that
