@@ -67,7 +67,7 @@ namespace morph {
                         for (size_t i = 0; i < iconn; ++i, ++l1) {}
                         auto l2 = this->p_inputs.begin();
                         for (size_t i = 0; i < conn.second; ++i, ++l2) {}
-                        std::cout << "Connect " << iconn << "(pop. output) to " << conn.second << " (pop. input)"<< std::endl;
+                        //std::cout << "Connect " << iconn << "(pop. output) to " << conn.second << " (pop. input)"<< std::endl;
                         morph::nn::NetConn<T> c(&*l1, &*l2);
                         // Set weights up
                         c.setweight_onetoone (T{1});
@@ -101,43 +101,43 @@ namespace morph {
             {
                 // Copy result from each connection to inputs of populations first.
                 for (auto& c : this->connections) {
-                    std::cout << "One connection...\n";
+                    //std::cout << "One connection...\n";
                     std::vector<T>& _z = c.z; // FIXME. IF _z is morph::vVector, can't
                                               // call _out.set_from(_z). That's a fix
                                               // for morph/vVector.h
                     c.out->set_from (_z);
-                    for (auto ii : *c.out) {
-                        std::cout << "c.out[]: " << ii << std::endl;
-                    }
+                    //for (auto ii : *c.out) {
+                    //    std::cout << "c.out[]: " << ii << std::endl;
+                    //}
                 }
 
                 // For a neural net with neuron models, the first stop is to go through
                 // this->neurons calling update() on each layer.
-                std::cout << "Population inputs...\n";
-                for (auto pin : this->p_inputs) {
-                    std::cout << pin << std::endl;
-                }
+                //std::cout << "Population inputs...\n";
+                //for (auto pin : this->p_inputs) {
+                //    std::cout << pin << std::endl;
+                //}
                 auto p_in = this->p_inputs.begin();
                 auto p_act = this->p_activations.begin();
                 auto p_out = this->p_outputs.begin();
                 // Opportunity for parallel ops here, but prob. not worthwhile
                 for (size_t i = 0; i < this->tau.size(); ++i) {
                     // Apply inputs to act (da/dt)
-                    std::cout << "(*p_act) = " <<  (*p_act) << std::endl;
-                    std::cout << "(*p_in) = " <<  (*p_in) << std::endl;
+                    //std::cout << "(*p_act) = " <<  (*p_act) << std::endl;
+                    //std::cout << "(*p_in) = " <<  (*p_in) << std::endl;
                     (*p_act) += (*p_in - *p_act)/this->tau[i];
                     // Apply transfer function to set the output
                     for (size_t i = 0; i < p_out->size(); ++i) {
-                        std::cout << "(*p_act)["<<i<<"] = " <<  ((*p_act)[i]) << std::endl;
+                        //std::cout << "(*p_act)["<<i<<"] = " <<  ((*p_act)[i]) << std::endl;
                         (*p_out)[i] = (*p_act)[i] > T{0} ? std::tanh((*p_act)[i]) : T{0};
-                        std::cout << "*p_out[i="<<i<<"] = " << (*p_out)[i] << " from activation = " << (*p_act)[i] << std::endl;
+                        //std::cout << "*p_out[i="<<i<<"] = " << (*p_out)[i] << " from activation = " << (*p_act)[i] << std::endl;
                     }
                     ++p_in; ++p_out; ++p_act;
                 }
 
                 // Then run through the connections.
                 for (auto& c : this->connections) {
-                    std::cout << "Calling c.feedforward()...\n";
+                    //std::cout << "Calling c.feedforward()...\n";
                     c.feedforward();
                     // Will copy the output of each connection onto the input of each population in the next feedforward step
                 }
@@ -153,7 +153,7 @@ namespace morph {
                 // Apply transfer function to set the output based on these activations
                 for (size_t i = 0; i < p_out->size(); ++i) {
                     (*p_out)[i] = (*p_act)[i] > T{0} ? std::tanh((*p_act)[i]) : T{0};
-                    std::cout << "setInput(): *p_out[i="<<i<<"] = " << (*p_out)[i] << " from activation = " << (*p_act)[i] << std::endl;
+                    //std::cout << "setInput(): *p_out[i="<<i<<"] = " << (*p_out)[i] << " from activation = " << (*p_act)[i] << std::endl;
                 }
                 this->desiredOutput = theOutput;
             }

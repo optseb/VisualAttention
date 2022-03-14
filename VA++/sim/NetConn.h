@@ -113,18 +113,6 @@ namespace morph {
                     ss << " Input " << ci++ << ": Weights: w" << w << "w (" << w.size() << ")\n";
                 }
                 ss << "z = " << z << std::endl;
-#if 0
-                ci = 0;
-                for (auto nabla_w : this->nabla_ws) {
-                    ss << " Input " << ci++ << ": nabla_w:nw" << nabla_w << "nw (" << nabla_w.size() << ")\n";
-                }
-                ss << " Output Biases: b" << b << "b (" << b.size() << ")\n";
-                ss << " Output nabla_b:nb" << nabla_b << "nb (" << nabla_b.size() << ")\n";
-                ci = 0;
-                for (auto delta : this->deltas) {
-                    ss << " Input " << ci++ << ": delta  :  " << delta << "\n";
-                }
-#endif
                 return ss.str();
             }
 
@@ -152,17 +140,17 @@ namespace morph {
             // have to loop over each input population)
             void feedforward()
             {
-                std::cout << "NetConn::feedforward()\n";
+                //std::cout << "NetConn::feedforward()\n";
                 // First, set the output of this connection, z to 0
                 this->z.zero();
 
                 // Loop over input populations:
                 for (size_t i = 0; i < this->ins.size(); ++i) {
                     // A morph::vVector for a 'part of w'
-                    std::cout << "*this->ins["<<i<<"] = " << *this->ins[i] << std::endl;
+                    //std::cout << "*this->ins["<<i<<"] = " << *this->ins[i] << std::endl;
                     morph::vVector<T>* _in = this->ins[i];
                     size_t m = _in->size();// Size m[i]
-                    std::cout << "m = " << m << std::endl;
+                    //std::cout << "m = " << m << std::endl;
                     morph::vVector<T> wpart(m);
                     // Get weights, outputs and biases iterators
                     auto witer = this->ws[i].begin();
@@ -170,10 +158,10 @@ namespace morph {
                     for (size_t j = 0; j < this->N; ++j) { // Each output
                         // Copy part of weights to wpart (M elements):
                         std::copy (witer, witer+m, wpart.begin());
-                        std::cout << "wpart: " << wpart << " dot " << (*ins[i]) << std::endl;
+                        //std::cout << "wpart: " << wpart << " dot " << (*ins[i]) << std::endl;
                         // Compute/accumulate dot product with input
                         this->z[j] += wpart.dot (*ins[i]);
-                        std::cout << "Set z["<<j<<"] to " << z[j] << std::endl;
+                        //std::cout << "Set z["<<j<<"] to " << z[j] << std::endl;
                         // Move to the next part of the weight matrix for the next loop
                         witer += m;
                     }
@@ -192,6 +180,7 @@ namespace morph {
                     this->z[j] += *biter++;
                     //*oiter++ = T{1} / (T{1} + std::exp(-z[j])); // out = sigmoid(z+bias)
                 }
+                std::cout << "Connection activation, z max: " << this->z.max() << std::endl;
             }
 
             // The content of *NetConn::out is sigmoid(z^l+1). \return has size N
@@ -206,83 +195,6 @@ namespace morph {
                 }
                 return rtn;
             }
-
-#if 0 // No backprop for now with this network
-            /*
-             * Before calling backprop, work out which of the inputs in the 'next'
-             * connection layer is relevant to the output of this connection layer.
-             */
-            void backprop (const NetConn& conn_nxt)
-            {
-                // For each input in conn_nxt, compare with our output. That will give
-                // us the index to use.
-                size_t idx = 0;
-                size_t idx_max = conn_nxt.ins.size();
-                for (size_t i = 0; i < idx_max; ++i) {
-                    if (conn_nxt.ins[i] == this->out) {
-                        idx = i;
-                        break;
-                    }
-                }
-                this->backprop (conn_nxt.deltas[idx]);
-            }
-
-            /*
-             * Compute this->delta using the values computed in NetConn::feedforward
-             * (which must have been executed beforehand).
-             */
-            void backprop (const morph::vVector<T>& delta_l_nxt) // delta_l_nxt has size N.
-            {
-                // Check sum of sizes in delta_l_nxt
-                if (delta_l_nxt.size() != this->out->size()) {
-                    std::stringstream ee;
-                    ee << "backprop: Mismatched size. delta_l_nxt size: "
-                       << delta_l_nxt.size() << ", out size: " << this->out->size();
-                    throw std::runtime_error (ee.str());
-                }
-
-                // we have to do weights * delta_l_nxt to give a morph::vVector<T>
-                // result. This is the equivalent of the matrix multiplication:
-                std::vector<morph::vVector<T>> w_times_deltas(this->ins.size());
-                for (size_t idx = 0; idx < this->ins.size(); ++idx) {
-                    size_t m = this->ins[idx]->size();
-                    w_times_deltas[idx].resize(m);
-                    w_times_deltas[idx].zero();
-                    for (size_t i = 0; i < m; ++i) { // Each input
-                        for (size_t j = 0; j < this->N; ++j) { // Each output
-                            // For each weight fanning into neuron j in l_nxt, sum up:
-                            w_times_deltas[idx][i] += this->ws[idx][i+(m*j)] * delta_l_nxt[j];
-                        }
-                    }
-                }
-
-                 // spzl has size M; deriv of input
-                std::vector<morph::vVector<T>> spzl = this->sigmoid_prime_z_l();
-
-                if (spzl.size() < this->deltas.size()) {
-                    throw std::runtime_error ("Sizes error (spzl and deltas)");
-                }
-
-                for (size_t idx = 0; idx < this->deltas.size(); ++idx) {
-                    this->deltas[idx] = w_times_deltas[idx] * spzl[idx];
-                }
-
-                // NB: In a given connection, we compute nabla_b and nabla_w relating to the
-                // *output* neurons and the weights also related to the output neurons.
-
-                this->nabla_b = delta_l_nxt; // Size is N
-
-                for (size_t idx = 0; idx < this->ins.size(); ++idx) {
-                    size_t m = this->ins[idx]->size();
-                    for (size_t i = 0; i < m; ++i) { // Each input
-                        for (size_t j = 0; j < this->N; ++j) { // Each output
-                            // nabla_w is a_in * delta_out:
-                            this->nabla_ws[idx][i+(m*j)] = (*(ins[idx]))[i] * delta_l_nxt[j];
-                        }
-                    }
-                }
-            }
-#endif
         };
 
         // Stream operator
