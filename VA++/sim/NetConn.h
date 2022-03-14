@@ -180,7 +180,7 @@ namespace morph {
                     this->z[j] += *biter++;
                     //*oiter++ = T{1} / (T{1} + std::exp(-z[j])); // out = sigmoid(z+bias)
                 }
-                std::cout << "Connection activation, z max: " << this->z.max() << std::endl;
+                //std::cout << "Connection activation, z max: " << this->z.max() << std::endl;
             }
 
             // The content of *NetConn::out is sigmoid(z^l+1). \return has size N

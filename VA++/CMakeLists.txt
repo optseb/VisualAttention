@@ -57,6 +57,7 @@ find_package(Armadillo REQUIRED)
 find_package(OpenGL REQUIRED)
 find_package(glfw3 3.3 REQUIRED)
 find_package(Freetype REQUIRED)
+find_package(OpenCV REQUIRED)
 
 # Define collections of includes for the dependencies
 set(MORPH_INC_CORE ${ARMADILLO_INCLUDE_DIR} ${ARMADILLO_INCLUDE_DIRS} ${HDF5_INCLUDE_DIR})
