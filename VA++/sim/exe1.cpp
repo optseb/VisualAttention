@@ -20,7 +20,7 @@ int main()
 {
     morph::Visual v(1600, 1000, "HexGrid with a neural net", {-0.8,-0.8}, {.05,.05,.05}, 2.0f, 0.0f);
 
-    float gridsize = 0.4f; // at 0.8f, neural network uses about 8GB of RAM. At 1.0f 32 GB isn't enough.
+    float gridsize = 0.5f; // at 0.8f, neural network uses about 8GB of RAM. At 1.0f 32 GB isn't enough.
 
     morph::HexGrid hg0(0.01f, 3.0f, 0.0f, morph::HexDomainShape::Boundary);
     hg0.setCircularBoundary (gridsize);
@@ -57,7 +57,7 @@ int main()
 
     // OpenCV code now to create image_data...
     //std::string fn = "../sim/Lbig.png";
-    std::string fn = "../sim/1982_Seb_Brackley.png";
+    std::string fn = "../sim/bike256.png";
     cv::Mat img = cv::imread (fn.c_str(), cv::IMREAD_GRAYSCALE);
     img.convertTo (img, CV_32F);
 
@@ -67,14 +67,13 @@ int main()
     std::cout << "image_data.size: " << image_data.size()
               << " and min/max: "
               << image_data.min()
-              << "/" << image_data.max() << "hg0 width: " << hg0.width() << std::endl;
+              << "/" << image_data.max() << ", hg0 width: " << hg0.width() << std::endl;
 
     image_data /= 255.0f;
 
-    morph::Vector<float,2> image_scale = {0.65f, 0.65f}; // what's the scale of the image in HexGrid's units?
+    morph::Vector<float,2> image_scale = {1.1f, 1.1f}; // what's the scale of the image in HexGrid's units?
     morph::Vector<float,2> image_offset = {-0.0f, -0.0f}; // offset in HexGrid's units (if 0, image is centered on HexGrid)
-    float sigma = 0.000004f;
-    morph::vVector<float> data0 = hg0.resampleImage (image_data, img.cols, image_scale, image_offset, sigma);
+    morph::vVector<float> data0 = hg0.resampleImage (image_data, img.cols, image_scale, image_offset);
 #endif
 
     morph::vVector<float> theoutput(hg2.num());
