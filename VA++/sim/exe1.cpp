@@ -20,7 +20,7 @@ int main()
 {
     morph::Visual v(1600, 1000, "HexGrid with a neural net", {-0.8,-0.8}, {.05,.05,.05}, 2.0f, 0.0f);
 
-    float gridsize = 0.5f; // at 0.8f, neural network uses about 8GB of RAM. At 1.0f 32 GB isn't enough.
+    float gridsize = 0.3f; // at 0.8f, neural network uses about 8GB of RAM. At 1.0f 32 GB isn't enough.
 
     morph::HexGrid hg0(0.01f, 3.0f, 0.0f, morph::HexDomainShape::Boundary);
     hg0.setCircularBoundary (gridsize);
@@ -56,8 +56,8 @@ int main()
     // morph::vVector<float>, though then we'd need to specify pixel width
 
     // OpenCV code now to create image_data...
-    //std::string fn = "../sim/Lbig.png";
-    std::string fn = "../sim/bike256.png";
+    std::string fn = "../sim/Lbig.png";
+    //std::string fn = "../sim/bike256.png";
     cv::Mat img = cv::imread (fn.c_str(), cv::IMREAD_GRAYSCALE);
     img.convertTo (img, CV_32F);
 
@@ -71,7 +71,7 @@ int main()
 
     image_data /= 255.0f;
 
-    morph::Vector<float,2> image_scale = {1.1f, 1.1f}; // what's the scale of the image in HexGrid's units?
+    morph::Vector<float,2> image_scale = {0.4f, 0.4f}; // what's the scale of the image in HexGrid's units?
     morph::Vector<float,2> image_offset = {-0.0f, -0.0f}; // offset in HexGrid's units (if 0, image is centered on HexGrid)
     morph::vVector<float> data0 = hg0.resampleImage (image_data, img.cols, image_scale, image_offset);
 #endif
@@ -81,8 +81,8 @@ int main()
     auto popout = ffn.p_outputs.begin();
     ffn.setInput (data0, theoutput);
 
-    //ffn.feedforward();
-    //ffn.feedforward();
+    ffn.feedforward();
+    ffn.feedforward();
 
     morph::HexGridVisual<float>* hgv0 = new morph::HexGridVisual<float>(v.shaderprog, v.tshaderprog, &hg0, hg0_loc);
     hgv0->setScalarData (&*popout++);
@@ -108,7 +108,7 @@ int main()
     while (v.readyToFinish == false) {
 
         //if (ri < 4) {
-#if 0
+#if 1
         ffn.feedforward();
         popout = ffn.p_outputs.begin();
         hgv0->updateData(&*popout++);
@@ -116,7 +116,7 @@ int main()
         hgv2->updateData(&*popout++);
 #endif
         //}
-        glfwWaitEventsTimeout (0.18); // 0.018 for speed, but slowed down for debug
+        glfwWaitEventsTimeout (0.001); // 0.018 for speed, but slowed down for debug
         v.render();
         //std::cout << "Render " << ri++ << std::endl;
     }
