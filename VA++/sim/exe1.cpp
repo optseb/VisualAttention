@@ -56,8 +56,8 @@ int main()
     // morph::vVector<float>, though then we'd need to specify pixel width
 
     // OpenCV code now to create image_data...
-    std::string fn = "../sim/Lbig.png";
-    //std::string fn = "../sim/bike256.png";
+    //std::string fn = "../sim/Lbig.png";
+    std::string fn = "../sim/bike256.png";
     cv::Mat img = cv::imread (fn.c_str(), cv::IMREAD_GRAYSCALE);
     img.convertTo (img, CV_32F);
 

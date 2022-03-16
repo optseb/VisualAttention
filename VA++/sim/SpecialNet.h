@@ -70,7 +70,7 @@ namespace morph {
                         //std::cout << "Connect " << iconn << "(pop. output) to " << conn.second << " (pop. input)"<< std::endl;
                         morph::nn::NetConn<T> c(&*l1, &*l2);
                         // Set weights up
-                        c.setweight_onetoone (T{1});
+                        c.setweight_onetoone (T{0.01});
                         c.setbias (T{0});
                         this->connections.push_back (c);
                     }
