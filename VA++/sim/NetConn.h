@@ -14,19 +14,10 @@
 #include <sstream>
 #include <ostream>
 #include <vector>
+#include "conn.h"
 
 namespace morph {
     namespace nn {
-
-        // One, individual connection from index i to index j. A single line in a weight table
-        template <typename T>
-        struct conn
-        {
-            unsigned int i = 0;
-            unsigned int j = 0;
-            // Omit a per-connection delay
-            T w = T{1}; // The weight from input neuron i to output neuron j
-        };
 
         /*
          * A connection between neuron layers in a feed forward neural network. This
@@ -171,6 +162,7 @@ namespace morph {
                 for (size_t j = 0; j < this->N; ++j) {
                     // Add up inputs based on this->ws[i] which is a vector<conn<T>>
                     // Adding to z[j] here.
+//#pragma omp parallel for
                     for (auto c : ws[j]) {
                         // we have c.i c.j c.w, but c.j should be j, due to sorting
                         z[j] += (*this->in)[c.i] * c.w;
@@ -185,6 +177,7 @@ namespace morph {
             void applyTransfer()
             {
                 auto biter = this->b.begin();
+//#pragma omp parallel for
                 for (size_t j = 0; j < this->N; ++j) {
                     this->z[j] += *biter++;
                 }
