@@ -93,23 +93,21 @@ int main()
     // at 0.8f, HexGrid with d=0.01f has about same number of elements as the 150x150 grids in the orig. model.
     float gridsize = 0.5f;
 
+    // A single HexGrid is used for the positions of the neurons for all populations of this size.
     morph::HexGrid hg0(0.01f, 3.0f, 0.0f, morph::HexDomainShape::Boundary);
     hg0.setCircularBoundary (gridsize);
+    std::cout << "Number of pixels in grid:" << hg0.num() << std::endl;
+
+    // Locations for 3 visualisations based on the same grid
     morph::Vector<float, 3> hg0_loc = { 0.0f, 0.0f, 0.0f };
+    morph::Vector<float, 3> hg1_loc = { -(hg0.width()*0.6f), 0.0f, 0.5f };
+    morph::Vector<float, 3> hg2_loc = { +(hg0.width()*0.6f), 0.0f, 0.5f };
 
-    morph::HexGrid hg1(0.01f, 3.0f, 0.0f, morph::HexDomainShape::Boundary);
-    hg1.setCircularBoundary (gridsize);
-    morph::Vector<float, 3> hg1_loc = { -(hg1.width()*0.6f), 0.0f, 0.5f };
-
-    morph::HexGrid hg2(0.01f, 3.0f, 0.0f, morph::HexDomainShape::Boundary);
-    hg2.setCircularBoundary (gridsize);
-    morph::Vector<float, 3> hg2_loc = { +(hg1.width()*0.6f), 0.0f, 0.5f };
-    std::cout << "Number of pixels in grid:" << hg1.num() << std::endl;
 
     // Create one "Special Network" object, with a connectivity specification.
     std::vector<std::pair<morph::vVector<unsigned int>, unsigned int>> connspec = {{{0},1},{{0},2}};
     float tau = 1000.0f;
-    morph::nn::SpecialNet<float> snet({hg0.num(),hg1.num(),hg2.num()}, connspec, tau);
+    morph::nn::SpecialNet<float> snet({hg0.num(),hg0.num(),hg0.num()}, connspec, tau);
 
     // Create weight tables and set these into the network's connections
     float gain_g = 1.0f;
@@ -118,7 +116,7 @@ int main()
     float dir_s_1 = 30.0f;
     float dir_s_2 = 120.0f;
 
-    std::vector<morph::nn::conn<float>> weight_table1 = create_gabor (hg0, hg1,
+    std::vector<morph::nn::conn<float>> weight_table1 = create_gabor (hg0, hg0,
                                                                       hg0.getd()/2.0f,
                                                                       gain_g,
                                                                       lambda_s,
@@ -127,7 +125,7 @@ int main()
     auto c = snet.connections.begin();
     c->setweight (weight_table1);
 
-    std::vector<morph::nn::conn<float>> weight_table2 = create_gabor (hg0, hg2,
+    std::vector<morph::nn::conn<float>> weight_table2 = create_gabor (hg0, hg0,
                                                                       hg0.getd()/2.0f,
                                                                       gain_g,
                                                                       lambda_s,
@@ -149,7 +147,7 @@ int main()
     morph::Vector<float,2> image_offset = {0.0f, 0.0f}; // offset in HexGrid's units (if 0, image is centered on HexGrid)
     morph::vVector<float> data0 = hg0.resampleImage (image_data, img.cols, image_scale, image_offset);
 
-    morph::vVector<float> theoutput(hg2.num());
+    morph::vVector<float> theoutput(hg0.num());
     theoutput.zero();
     auto popout = snet.p_outputs.begin();
     snet.setInput (data0, theoutput);
@@ -161,23 +159,23 @@ int main()
     hgv0->setScalarData (&*popout++);
     hgv0->cm.setType (morph::ColourMapType::GreyscaleInv);
     hgv0->hexVisMode = morph::HexVisMode::HexInterp;
-    hgv0->zScale.setParams (0, 1); // This fixes the z scale to have zero slope - so no relief in the map
+    hgv0->zScale.setParams (0, 0); // This fixes the z scale to have zero slope - so no relief in the map
     hgv0->finalize();
     v.addVisualModel (hgv0);
 
-    morph::HexGridVisual<float>* hgv1 = new morph::HexGridVisual<float>(v.shaderprog, v.tshaderprog, &hg1, hg1_loc);
+    morph::HexGridVisual<float>* hgv1 = new morph::HexGridVisual<float>(v.shaderprog, v.tshaderprog, &hg0, hg1_loc);
     hgv1->setScalarData (&*popout++);
     hgv1->hexVisMode = morph::HexVisMode::HexInterp;
-    hgv1->zScale.setParams (0, 1);
+    hgv1->zScale.setParams (0, 0);
     hgv1->addLabel ("hgv1", { -0.2f, 0.2f, 0.01f },
                     morph::colour::black, morph::VisualFont::DVSans, 0.1f, 48);
     hgv1->finalize();
     v.addVisualModel (hgv1);
 
-    morph::HexGridVisual<float>* hgv2 = new morph::HexGridVisual<float>(v.shaderprog, v.tshaderprog, &hg2, hg2_loc);
+    morph::HexGridVisual<float>* hgv2 = new morph::HexGridVisual<float>(v.shaderprog, v.tshaderprog, &hg0, hg2_loc);
     hgv2->setScalarData (&*popout++);
     hgv2->hexVisMode = morph::HexVisMode::HexInterp; // Or morph::HexVisMode::Triangles for a smoother surface plot
-    hgv2->zScale.setParams (0, 1);
+    hgv2->zScale.setParams (0, 0);
     hgv2->addLabel ("hgv2", { -0.2f, 0.2f, 0.01f },
                     morph::colour::black, morph::VisualFont::DVSans, 0.1f, 48);
     hgv2->finalize();
