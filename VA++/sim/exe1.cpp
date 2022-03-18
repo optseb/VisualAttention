@@ -79,21 +79,33 @@ std::vector<morph::nn::conn<float>> create_gaussian (const morph::HexGrid& p1,
                                                      const morph::HexGrid& p2,
                                                      const morph::Vector<float, 2> sigma)
 {
+    std::stringstream dss;
+    dss << "gauss_hg" << p1.num() << "_hg" << p2.num() << "_" << sigma[0] <<  "_" << sigma[1] << "_" << ".h5";
+
     std::vector<morph::nn::conn<float>> weight_table;
-    morph::Vector<float, 2> threesig = 3.0f * sigma;
-    morph::Vector<float, 2> params = 1.0f / (2.0f * sigma * sigma);
-    // Connection is from p1 to p2. Loop through the output first.
-    for (auto h2 : p2.hexen) { // outputs
-        for (auto h1 : p1.hexen) { // inputs
-            // h2.x - h1.x and h
-            float d_x = h2.x - h1.x;
-            float d_y = h2.y - h1.y;
-            if (d_x < threesig[0] && d_y < threesig[1]) {
-                float w = std::exp ( - ( (params[0] * d_x * d_x) + (params[1] * d_y * d_y) ) );
-                morph::nn::conn<float> c = {h1.vi, h2.vi, w};
-                weight_table.push_back (c);
+    if (morph::Tools::fileExists (dss.str())) {
+        WeightHdfData d (dss.str(), morph::FileAccess::ReadOnly);
+        std::cout << "Load gauss " << dss.str() << std::endl;
+        d.read_weighttable ("/wt", weight_table);
+    } else {
+        morph::Vector<float, 2> threesig = 3.0f * sigma;
+        morph::Vector<float, 2> params = 1.0f / (2.0f * sigma * sigma);
+        // Connection is from p1 to p2. Loop through the output first.
+        for (auto h2 : p2.hexen) { // outputs
+            for (auto h1 : p1.hexen) { // inputs
+                // h2.x - h1.x and h
+                float d_x = h2.x - h1.x;
+                float d_y = h2.y - h1.y;
+                if (d_x < threesig[0] && d_y < threesig[1]) {
+                    float w = std::exp ( - ( (params[0] * d_x * d_x) + (params[1] * d_y * d_y) ) );
+                    morph::nn::conn<float> c = {h1.vi, h2.vi, w};
+                    weight_table.push_back (c);
+                }
             }
         }
+        WeightHdfData d (dss.str(), morph::FileAccess::TruncateWrite);
+        std::cout << "Save gauss " << dss.str() << std::endl;
+        d.add_weighttable ("/wt", weight_table);
     }
     return weight_table;
 }
