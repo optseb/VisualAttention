@@ -92,11 +92,13 @@ int main()
 
     // at 0.8f, HexGrid with d=0.01f has about same number of elements as the 150x150 grids in the orig. model.
     float gridsize = 0.5f;
+    // Hex to hex size
+    float hexhex = 0.01f;
 
     // A single HexGrid is used for the positions of the neurons for all populations of this size.
-    morph::HexGrid hg0(0.01f, 3.0f, 0.0f, morph::HexDomainShape::Boundary);
+    morph::HexGrid hg0(hexhex, gridsize * 3.0f, 0.0f, morph::HexDomainShape::Boundary);
     hg0.setCircularBoundary (gridsize);
-    std::cout << "Number of pixels in grid:" << hg0.num() << std::endl;
+    std::cout << "Number of hexagonal pixels in the HexGrid:" << hg0.num() << std::endl;
 
     // Locations for 3 visualisations based on the same grid
     morph::Vector<float, 3> hg0_loc = { 0.0f, 0.0f, 0.0f };
@@ -123,7 +125,7 @@ int main()
                                                                       gain_s,
                                                                       dir_s_1);
     auto c = snet.connections.begin();
-    c->setweight (weight_table1);
+    //c->setweight (weight_table1);
 
     std::vector<morph::nn::conn<float>> weight_table2 = create_gabor (hg0, hg0,
                                                                       hg0.getd()/2.0f,
@@ -132,7 +134,7 @@ int main()
                                                                       gain_s,
                                                                       dir_s_2);
     c++;
-    c->setweight (weight_table2);
+    //c->setweight (weight_table2);
 
     // Load an image
     //std::string fn = "../sim/Lbig.png";
@@ -140,23 +142,22 @@ int main()
     cv::Mat img = cv::imread (fn.c_str(), cv::IMREAD_GRAYSCALE);
     img.convertTo (img, CV_32F);
     morph::vVector<float> image_data;
-    image_data.assign((float*)img.data, (float*)img.data + img.total()*img.channels());
+    image_data.assign (reinterpret_cast<float*>(img.data),
+                       reinterpret_cast<float*>(img.data) + img.total() * img.channels());
     image_data /= 255.0f;
 
     morph::Vector<float,2> image_scale = {0.6f, 0.6f}; // what's the scale of the image in HexGrid's units?
     morph::Vector<float,2> image_offset = {0.0f, 0.0f}; // offset in HexGrid's units (if 0, image is centered on HexGrid)
     morph::vVector<float> data0 = hg0.resampleImage (image_data, img.cols, image_scale, image_offset);
 
-    morph::vVector<float> theoutput(hg0.num());
-    theoutput.zero();
-    auto popout = snet.p_outputs.begin();
-    snet.setInput (data0, theoutput);
+    auto popout = snet.pops.begin();
+    snet.setinput (data0);
 
     snet.feedforward();
-    snet.feedforward();
+//    snet.feedforward();
 
     morph::HexGridVisual<float>* hgv0 = new morph::HexGridVisual<float>(v.shaderprog, v.tshaderprog, &hg0, hg0_loc);
-    hgv0->setScalarData (&*popout++);
+    hgv0->setScalarData (&popout++->outputs);
     hgv0->cm.setType (morph::ColourMapType::GreyscaleInv);
     hgv0->hexVisMode = morph::HexVisMode::HexInterp;
     hgv0->zScale.setParams (0, 0); // This fixes the z scale to have zero slope - so no relief in the map
@@ -164,7 +165,7 @@ int main()
     v.addVisualModel (hgv0);
 
     morph::HexGridVisual<float>* hgv1 = new morph::HexGridVisual<float>(v.shaderprog, v.tshaderprog, &hg0, hg1_loc);
-    hgv1->setScalarData (&*popout++);
+    hgv1->setScalarData (&popout++->outputs);
     hgv1->hexVisMode = morph::HexVisMode::HexInterp;
     hgv1->zScale.setParams (0, 0);
     hgv1->addLabel ("hgv1", { -0.2f, 0.2f, 0.01f },
@@ -173,7 +174,7 @@ int main()
     v.addVisualModel (hgv1);
 
     morph::HexGridVisual<float>* hgv2 = new morph::HexGridVisual<float>(v.shaderprog, v.tshaderprog, &hg0, hg2_loc);
-    hgv2->setScalarData (&*popout++);
+    hgv2->setScalarData (&popout++->outputs);
     hgv2->hexVisMode = morph::HexVisMode::HexInterp; // Or morph::HexVisMode::Triangles for a smoother surface plot
     hgv2->zScale.setParams (0, 0);
     hgv2->addLabel ("hgv2", { -0.2f, 0.2f, 0.01f },
@@ -184,13 +185,13 @@ int main()
     size_t loop = 0;
     while (v.readyToFinish == false) {
         snet.feedforward();
-        if (loop++%1000 == 0) {
-            glfwWaitEventsTimeout (0.001);
-            popout = snet.p_outputs.begin();
-            hgv0->updateData(&*popout++);
-            hgv1->updateData(&*popout++);
+        if (loop++%100 == 0) {
+            glfwWaitEventsTimeout (0.018);
+            popout = snet.pops.begin();
+            hgv0->updateData(&popout++->outputs);
+            hgv1->updateData(&popout++->outputs);
             hgv1->clearAutoscaleColour(); // Ensures colour scale re-normalises each time
-            hgv2->updateData(&*popout++);
+            hgv2->updateData(&popout++->outputs);
             hgv2->clearAutoscaleColour();
             v.render();
         }

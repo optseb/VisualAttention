@@ -17,9 +17,69 @@
 #include <sstream>
 #include <ostream>
 #include <map>
+#include <string>
 
 namespace morph {
     namespace nn {
+
+        template <typename T>
+        struct population
+        {
+            population(unsigned int sz)
+            {
+                this->inputs.resize(sz);
+                this->inputs.zero();
+                this->outputs.resize(sz);
+                this->outputs.zero();
+            }
+            // inputs. A vVector of inputs, one for each neural element
+            morph::vVector<T> inputs;
+            // neuron outputs
+            morph::vVector<T> outputs;
+            // The population interface - an update() function
+            virtual void update() = 0;
+            // For output, show just the population's current outputs
+            std::string str() const
+            {
+                std::stringstream ss;
+                ss << "Pop outputs: " << outputs << std::endl;
+                return ss.str();
+            }
+        };
+        template <typename T>
+        std::ostream& operator<< (std::ostream& os, const morph::nn::population<T>& p)
+        {
+            os << p.str();
+            return os;
+        }
+
+        template <typename T>
+        struct lin_population : public population<T>
+        {
+            lin_population(unsigned int sz, T _tau)
+                : population<T>::population (sz)
+                , tau(_tau)
+            {
+                this->acts.resize (sz);
+                this->acts.zero();
+            }
+            // Leaky integrators need neuron activations
+            morph::vVector<T> acts;
+            // Time constant
+            T tau = T{10};
+            // A noise gain
+            T noisegain = T{0};
+            // Leaky integrator-specific update function
+            virtual void update()
+            {
+                // Apply inputs to act (da/dt)
+                this->acts += (this->inputs - this->acts)/this->tau;
+                // Apply transfer function to set the output
+                for (size_t i = 0; i < this->outputs.size(); ++i) {
+                    this->outputs[i] = this->acts[i] > T{0} ? std::tanh(this->acts[i]) : T{0};
+                }
+            }
+        };
 
         /*!
          * A feedforward network class which holds a runtime-selectable set of neuron
@@ -42,33 +102,28 @@ namespace morph {
             //! ([5,4], 1) layers 4 & 5 connect to layer 1
             //!
             SpecialNet (const std::vector<unsigned int>& layer_spec,
-                        const std::vector<std::pair<morph::vVector<unsigned int>, unsigned int>>& connection_spec, T _tau)
+                        const std::vector<std::pair<morph::vVector<unsigned int>,
+                        unsigned int>>& connection_spec, T _tau)
             {
                 // Set up layers according to layer_spec
                 for (auto nn : layer_spec) {
-                    // Create, and zero, a layer containing nn neurons:
-                    morph::vVector<T> lyr(nn);
-                    lyr.zero();
-                    this->p_inputs.push_back (lyr); // input from a connection network
-                    this->p_activations.push_back (lyr); // internal neuron activation - forms a memory
-                    this->p_outputs.push_back (lyr); // The transferred output of the population - fed to connection networks
+                    // Create a population containing nn neurons:
+                    morph::nn::lin_population<T> p(nn, _tau);
+                    this->pops.push_back (p);
                 }
-                this->tau.resize(layer_spec.size());
-                this->tau.set_from (_tau);
-                this->noisegain.resize(layer_spec.size());
-                this->noisegain.set_from (T{0});
 
                 // Add the connections according to connection_spec
                 for (auto conn : connection_spec) {
                     // conn.first is a vector of input neuron layer indices
                     // conn.second is the single output neuron layer index
                     for (auto iconn : conn.first) {
-                        auto l1 = this->p_outputs.begin();
-                        for (size_t i = 0; i < iconn; ++i, ++l1) {}
-                        auto l2 = this->p_inputs.begin();
-                        for (size_t i = 0; i < conn.second; ++i, ++l2) {}
-                        morph::nn::NetConn<T> c(&*l1, &*l2);
-                        // Set weights up
+                        // Find output and input populations
+                        auto lo = this->pops.begin();
+                        for (size_t i = 0; i < iconn; ++i, ++lo) {}
+                        auto li = this->pops.begin();
+                        for (size_t i = 0; i < conn.second; ++i, ++li) {}
+                        morph::nn::NetConn<T> c(&(lo->outputs), &(li->inputs));
+                        // Set weights up as onetoone. Can set up later too.
                         c.setweight_onetoone (T{0.01});
                         c.setbias (T{0});
                         this->connections.push_back (c);
@@ -76,85 +131,44 @@ namespace morph {
                 }
             }
 
+            //! Update the network's outputs from its inputs
+            void feedforward()
+            {
+                // Copy result from each connection to inputs of populations first.
+                for (auto& c : this->connections) { std::vector<T>& _z = c.z; c.out->set_from (_z); }
+                // Update neurons on each layer
+                for (auto& p : this->pops) { p.update(); }
+                // Then run through the connections.
+                for (auto& c : this->connections) { c.feedforward(); }
+            }
+
+            //! Set up the first population's current activations
+            void setinput (const morph::vVector<T>& theInput)
+            {
+                this->pops.begin()->inputs = theInput;
+                this->pops.begin()->acts = theInput;
+                this->pops.begin()->update();
+            }
+
             //! Output the network as a string
             std::string str() const
             {
                 std::stringstream ss;
                 unsigned int i = 0;
-                auto c = this->connections.begin();
-                for (auto n : this->p_activations) {
-                    if (i>0 && c != this->connections.end()) {
-                        ss << *c++;
-                    }
-                    ss << "Layer activation " << i++ << ":  "  << n << "\n";
+                for (auto c : this->connections) {
+                    ss << "Connection " << i++ << ": " << c << "\n";
                 }
                 i = 0;
-                for (auto n : this->p_outputs) {
-                    ss << "Layer output " << i++ << ":  "  << n << "\n";
+                for (auto p : this->pops) {
+                    ss << "Population " << i++ << ":  "  << p << "\n";
                 }
                 return ss.str();
             }
 
-            //! Update the network's outputs from its inputs
-            void feedforward()
-            {
-                // Copy result from each connection to inputs of populations first.
-                for (auto& c : this->connections) {
-                    std::vector<T>& _z = c.z;
-                    c.out->set_from (_z);
-                }
-
-                // Update neurons on each layer
-                auto p_in = this->p_inputs.begin();
-                auto p_act = this->p_activations.begin();
-                auto p_out = this->p_outputs.begin();
-                // Opportunity for parallel ops here, but prob. not worthwhile
-                for (size_t i = 0; i < this->tau.size(); ++i) {
-                    // Apply inputs to act (da/dt)
-                    (*p_act) += (*p_in - *p_act)/this->tau[i];
-                    // Apply transfer function to set the output
-                    for (size_t i = 0; i < p_out->size(); ++i) {
-                        (*p_out)[i] = (*p_act)[i] > T{0} ? std::tanh((*p_act)[i]) : T{0};
-                    }
-                    ++p_in; ++p_out; ++p_act;
-                }
-
-                // Then run through the connections.
-                for (auto& c : this->connections) { c.feedforward(); }
-            }
-
-            //! Set up a population's current activations along with desired output
-            void setInput (const morph::vVector<T>& theInput, const morph::vVector<T>& theOutput)
-            {
-                *(this->p_activations.begin()) = theInput;
-                auto p_act = this->p_activations.begin();
-                this->p_outputs.resize (this->p_activations.size());
-                auto p_out = this->p_outputs.begin();
-                // Apply transfer function to set the output based on these activations
-                for (size_t i = 0; i < p_out->size(); ++i) {
-                    (*p_out)[i] = (*p_act)[i] > T{0} ? std::tanh((*p_act)[i]) : T{0};
-                }
-                this->desiredOutput = theOutput;
-            }
-
-            //! A variable number of neuron layers, each of variable size. In this very
-            //! simple network, each 'neuron' is just an activation of type T. Note that
-            //! the connectivity between the layers is NOT assumed to be simple feedforward.
-            std::list<morph::vVector<T>> p_inputs; // input to a population
-            std::list<morph::vVector<T>> p_activations; // population activations
-            std::list<morph::vVector<T>> p_outputs; // population outputs
-
-            // A series of vectors with parameters for now
-            morph::vVector<T> tau; // Time constant for each neuron population
-            morph::vVector<T> noisegain; // noise gain for each neuron population
-
+            //! Leaky integrator populations
+            std::list<lin_population<T>> pops;
             //! Connections in the network.
             std::list<morph::nn::NetConn<T>> connections;
-
-            //! The error (dC/dz) of the output layer
-            morph::vVector<T> delta_out;
-            //! The desired output of the network
-            morph::vVector<T> desiredOutput;
         };
 
         template <typename T>
