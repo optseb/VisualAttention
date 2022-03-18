@@ -18,7 +18,7 @@
 #include <opencv2/opencv.hpp>
 #include <opencv2/imgproc.hpp>
 
-// A special HdfData class with a method to save/load std::vector<morph::nn::conn<float>> weight_table
+// Extended HdfData class with a method to save/load std::vector<morph::nn::conn<float>> weight_table
 class WeightHdfData : public morph::HdfData
 {
 public:
@@ -74,13 +74,15 @@ public:
 
 // This is a bit like a SpineCreator connectionFunc. Here, we connect from one HexGrid
 // to another with a Gaussian projection defined by the parameters in sigma. Result
-// returned in weight_table.
+// returned in weight_table. Offset allows you to shift the Gaussian's field around
 std::vector<morph::nn::conn<float>> create_gaussian (const morph::HexGrid& p1,
                                                      const morph::HexGrid& p2,
-                                                     const morph::Vector<float, 2> sigma)
+                                                     const morph::Vector<float, 2> sigma,
+                                                     const morph::Vector<float, 2> offset = {0, 0},
+                                                     const float wco = 0.001f)
 {
     std::stringstream dss;
-    dss << "gauss_hg" << p1.num() << "_hg" << p2.num() << "_" << sigma[0] <<  "_" << sigma[1] << "_" << ".h5";
+    dss << "gauss_hg" << p1.num() << "_hg" << p2.num() << "_" << sigma[0] <<  "_" << sigma[1] << "_" << wco << ".h5";
 
     std::vector<morph::nn::conn<float>> weight_table;
     if (morph::Tools::fileExists (dss.str())) {
@@ -94,12 +96,14 @@ std::vector<morph::nn::conn<float>> create_gaussian (const morph::HexGrid& p1,
         for (auto h2 : p2.hexen) { // outputs
             for (auto h1 : p1.hexen) { // inputs
                 // h2.x - h1.x and h
-                float d_x = h2.x - h1.x;
-                float d_y = h2.y - h1.y;
+                float d_x = h2.x - h1.x + offset[0];
+                float d_y = h2.y - h1.y + offset[1];
                 if (d_x < threesig[0] && d_y < threesig[1]) {
                     float w = std::exp ( - ( (params[0] * d_x * d_x) + (params[1] * d_y * d_y) ) );
-                    morph::nn::conn<float> c = {h1.vi, h2.vi, w};
-                    weight_table.push_back (c);
+                    if (w >= wco) {
+                        morph::nn::conn<float> c = {h1.vi, h2.vi, w};
+                        weight_table.push_back (c);
+                    }
                 }
             }
         }
@@ -107,6 +111,8 @@ std::vector<morph::nn::conn<float>> create_gaussian (const morph::HexGrid& p1,
         std::cout << "Save gauss " << dss.str() << std::endl;
         d.add_weighttable ("/wt", weight_table);
     }
+    std::cout << "Gaussian weight table size: " << weight_table.size()
+              << " (" << (weight_table.size() / p1.num()) << " connections per neuron)\n";
     return weight_table;
 }
 
@@ -181,21 +187,34 @@ int main()
     // A single HexGrid is used for the positions of the neurons for all populations of this size.
     morph::HexGrid hg0(hexhex, gridsize * 3.0f, 0.0f, morph::HexDomainShape::Boundary);
     hg0.setCircularBoundary (gridsize);
-    std::cout << "Number of hexagonal pixels in the HexGrid:" << hg0.num() << std::endl;
+    unsigned int n0 = hg0.num();
+    std::cout << "Number of hexagonal pixels in the HexGrid:" << n0 << std::endl;
+
+    // Create one "Special Network" object, with a connectivity specification. This
+    // specifies only the lines between the populations, not what kind of
+    // neuron-to-neuron connectivity weight maps there will be.
+    std::vector<std::pair<morph::vVector<unsigned int>, unsigned int>> connspec = {
+        {{0},1},  {{0},2},  // layer 0 to layer 1
+        {{1},2},  {{2},1},  // layer 1 intra
+        {{1},3},  {{1},4}, {{1},5}, {{1},6}, {{1},7},  {{2},4}, {{2},5}, {{2},6}, {{2},7},  {{2},8} // l1 to l2
+    };
+    float tau = 1000.0f;
+    morph::nn::SpecialNet<float> snet({n0, n0,n0, n0,n0,n0,n0,n0,n0 }, connspec, tau);
 
     // Locations for 3 visualisations based on the same grid
-    morph::Vector<float, 3> hg0_loc = { 0.0f, 0.0f, 0.0f };
-    morph::Vector<float, 3> hg1_loc = { -(hg0.width()*0.6f), 0.0f, 0.5f };
-    morph::Vector<float, 3> hg2_loc = { +(hg0.width()*0.6f), 0.0f, 0.5f };
-
-
-    // Create one "Special Network" object, with a connectivity specification.
-    std::vector<std::pair<morph::vVector<unsigned int>, unsigned int>> connspec = {{{0},1},
-                                                                                   {{0},2},
-                                                                                   {{1},2},
-                                                                                   {{2},1}};
-    float tau = 1000.0f;
-    morph::nn::SpecialNet<float> snet({hg0.num(),hg0.num(),hg0.num()}, connspec, tau);
+    std::vector<morph::Vector<float, 3>> hg_locs;
+    // Layer 0
+    hg_locs.push_back ({ 0.0f, 0.0f, 0.0f });
+    // Layer 1
+    hg_locs.push_back ({ -(hg0.width()*0.6f), hg0.width(), 0.0f });
+    hg_locs.push_back ({ +(hg0.width()*0.6f), hg0.width(), 0.0f });
+    // Layer 2
+    hg_locs.push_back ({ -(hg0.width()*1.8f), 2.5f*hg0.width(), 0.0f });
+    hg_locs.push_back ({ -(hg0.width()*0.6f), 2.0f*hg0.width(), 0.0f });
+    hg_locs.push_back ({ -(hg0.width()*0.6f), 3.0f*hg0.width(), 0.0f });
+    hg_locs.push_back ({  (hg0.width()*0.6f), 2.0f*hg0.width(), 0.0f });
+    hg_locs.push_back ({  (hg0.width()*0.6f), 3.0f*hg0.width(), 0.0f });
+    hg_locs.push_back ({  (hg0.width()*1.8f), 2.5f*hg0.width(), 0.0f });
 
     // Create weight tables and set these into the network's connections
     float gain_g = 1.0f;
@@ -204,31 +223,78 @@ int main()
     float dir_s_1 = 30.0f;
     float dir_s_2 = 120.0f;
 
-    std::vector<morph::nn::conn<float>> weight_table1 = create_gabor (hg0, hg0,
-                                                                      hg0.getd()/2.0f,
-                                                                      gain_g,
-                                                                      lambda_s,
-                                                                      gain_s,
-                                                                      dir_s_1);
-    auto c = snet.connections.begin();
-    c->setweight (weight_table1);
+    std::vector<morph::nn::conn<float>> weight_table;
 
-    std::vector<morph::nn::conn<float>> weight_table2 = create_gabor (hg0, hg0,
-                                                                      hg0.getd()/2.0f,
-                                                                      gain_g,
-                                                                      lambda_s,
-                                                                      gain_s,
-                                                                      dir_s_2);
+    // Note: This is the part of setting up a neural network that really IS better in
+    // SpineCreator - the definition of connections between objects.
+    auto c = snet.connections.begin();
+
+    // Layer 0 to layer 1
+    weight_table = create_gabor (hg0, hg0, hg0.getd()/2.0f, gain_g, lambda_s, gain_s, dir_s_1);
+    c->setweight (weight_table);
+
+    weight_table = create_gabor (hg0, hg0, hg0.getd()/2.0f, gain_g, lambda_s, gain_s, dir_s_2);
     c++;
-    c->setweight (weight_table2);
+    c->setweight (weight_table);
+
+    // Layer 1 to Layer 1
+    float oneone_weight = -0.6f;
     c++;
-    c->setweight_onetoone (-0.6);
+    c->setweight_onetoone (oneone_weight);
     c++;
-    c->setweight_onetoone (-0.6);
+    c->setweight_onetoone (oneone_weight);
+
+    // Layer 1 to layer 2
+    float dg = hg0.getd()/2.0f;
+    morph::Vector<float, 2> g_sigma = {dg, dg};
+    c++;
+    weight_table = create_gaussian (hg0, hg0, g_sigma, {dg, 0}); // Will be create_dualgauss()
+    c->setweight (weight_table);
+
+    // Choose the offset distance.
+    float os = hg0.getd() * 6.0f;
+
+    // These four are conjunctions
+    c++;
+    weight_table = create_gaussian (hg0, hg0, g_sigma, {os, 0});
+    c->setweight (weight_table);
+
+    c++;
+    weight_table = create_gaussian (hg0, hg0, g_sigma, {os, 0});
+    c->setweight (weight_table);
+
+    c++;
+    weight_table = create_gaussian (hg0, hg0, g_sigma, {-os, 0});
+    c->setweight (weight_table);
+
+    c++;
+    weight_table = create_gaussian (hg0, hg0, g_sigma, {-os, 0});
+    c->setweight (weight_table);
+
+    // These four are conjunctions
+    c++;
+    weight_table = create_gaussian (hg0, hg0, g_sigma, {0, os});
+    c->setweight (weight_table);
+
+    c++;
+    weight_table = create_gaussian (hg0, hg0, g_sigma, {0, -os});
+    c->setweight (weight_table);
+
+    c++;
+    weight_table = create_gaussian (hg0, hg0, g_sigma, {0, -os});
+    c->setweight (weight_table);
+
+    c++;
+    weight_table = create_gaussian (hg0, hg0, g_sigma, {0, os});
+    c->setweight (weight_table);
+
+    c++;
+    //weight_table = create_dualgaussian (hg0, hg0, g_sigma, {0, os});
+    c->setweight (weight_table);
 
     // Load an image
-    //std::string fn = "../sim/Lbig.png";
-    std::string fn = "../sim/bike256.png";
+    std::string fn = "../sim/Lbig.png";
+    //std::string fn = "../sim/bike256.png";
     cv::Mat img = cv::imread (fn.c_str(), cv::IMREAD_GRAYSCALE);
     img.convertTo (img, CV_32F);
     morph::vVector<float> image_data;
@@ -239,50 +305,41 @@ int main()
     morph::Vector<float,2> image_scale = {0.6f, 0.6f}; // what's the scale of the image in HexGrid's units?
     morph::Vector<float,2> image_offset = {0.0f, 0.0f}; // offset in HexGrid's units (if 0, image is centered on HexGrid)
     morph::vVector<float> data0 = hg0.resampleImage (image_data, img.cols, image_scale, image_offset);
-
-    auto popout = snet.pops.begin();
     snet.setinput (data0);
 
-    snet.feedforward();
-//    snet.feedforward();
+    morph::HexGridVisual<float>* hgv = nullptr;
+    std::vector<morph::HexGridVisual<float>*> hgvs;
 
-    morph::HexGridVisual<float>* hgv0 = new morph::HexGridVisual<float>(v.shaderprog, v.tshaderprog, &hg0, hg0_loc);
-    hgv0->setScalarData (&popout++->outputs);
-    hgv0->cm.setType (morph::ColourMapType::GreyscaleInv);
-    hgv0->hexVisMode = morph::HexVisMode::HexInterp;
-    hgv0->zScale.setParams (0, 0); // This fixes the z scale to have zero slope - so no relief in the map
-    hgv0->finalize();
-    v.addVisualModel (hgv0);
+    auto popout = snet.pops.begin();
+    for (unsigned int ii = 0; ii < snet.pops.size(); ++ii) {
+        std::cout << "Set up hgv for location " << hg_locs[ii] << std::endl;
+        hgv = new morph::HexGridVisual<float>(v.shaderprog, v.tshaderprog, &hg0, hg_locs[ii]);
+        hgv->setScalarData (&popout++->outputs);
+        hgv->cm.setType (morph::ColourMapType::GreyscaleInv);
+        hgv->hexVisMode = morph::HexVisMode::HexInterp;
+        hgv->zScale.setParams (0, 0);
+        hgv->addLabel (std::string("pop")+std::to_string(ii),
+                       { -gridsize, gridsize, 0.01f },
+                       morph::colour::black, morph::VisualFont::DVSans, 0.1f, 48);
+        hgv->finalize();
+        v.addVisualModel (hgv);
+        hgvs.push_back (hgv);
+    }
+    std::cout << "size of hgvs: " << hgvs.size() << std::endl;
 
-    morph::HexGridVisual<float>* hgv1 = new morph::HexGridVisual<float>(v.shaderprog, v.tshaderprog, &hg0, hg1_loc);
-    hgv1->setScalarData (&popout++->outputs);
-    hgv1->hexVisMode = morph::HexVisMode::HexInterp;
-    hgv1->zScale.setParams (0, 0);
-    hgv1->addLabel ("hgv1", { -0.2f, 0.2f, 0.01f },
-                    morph::colour::black, morph::VisualFont::DVSans, 0.1f, 48);
-    hgv1->finalize();
-    v.addVisualModel (hgv1);
-
-    morph::HexGridVisual<float>* hgv2 = new morph::HexGridVisual<float>(v.shaderprog, v.tshaderprog, &hg0, hg2_loc);
-    hgv2->setScalarData (&popout++->outputs);
-    hgv2->hexVisMode = morph::HexVisMode::HexInterp; // Or morph::HexVisMode::Triangles for a smoother surface plot
-    hgv2->zScale.setParams (0, 0);
-    hgv2->addLabel ("hgv2", { -0.2f, 0.2f, 0.01f },
-                    morph::colour::black, morph::VisualFont::DVSans, 0.1f, 48);
-    hgv2->finalize();
-    v.addVisualModel (hgv2);
-
+    // Simulation loop
     size_t loop = 0;
     while (v.readyToFinish == false) {
         snet.feedforward();
-        if (loop++%100 == 0) {
+        if (loop++%1 == 0) {
             glfwWaitEventsTimeout (0.018);
+
             popout = snet.pops.begin();
-            hgv0->updateData(&popout++->outputs);
-            hgv1->updateData(&popout++->outputs);
-            hgv1->clearAutoscaleColour(); // Ensures colour scale re-normalises each time
-            hgv2->updateData(&popout++->outputs);
-            hgv2->clearAutoscaleColour();
+            for (unsigned int ii = 0; ii < snet.pops.size(); ++ii) {
+                hgvs[ii]->updateData(&popout++->outputs);
+                hgvs[ii]->clearAutoscaleColour(); // Ensures colour scale re-normalises each time
+            }
+
             v.render();
         }
     }
