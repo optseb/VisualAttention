@@ -134,11 +134,13 @@ namespace morph {
             //! Update the network's outputs from its inputs
             void feedforward()
             {
-                // Copy result from each connection to inputs of populations first.
-                for (auto& c : this->connections) { std::vector<T>& _z = c.z; c.out->set_from (_z); }
-                // Update neurons on each layer
+                // Zero each population's inputs
+                for (auto& p : this->pops) { p.inputs.zero(); }
+                // Now copy previous step's result from each connection to inputs of populations
+                for (auto& c : this->connections) { *(c.out) += c.z;  }
+                // Update the population neuron models
                 for (auto& p : this->pops) { p.update(); }
-                // Then run through the connections.
+                // Then run through the connections, doing weights * inputs for each
                 for (auto& c : this->connections) { c.feedforward(); }
             }
 

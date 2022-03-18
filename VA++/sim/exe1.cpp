@@ -190,7 +190,10 @@ int main()
 
 
     // Create one "Special Network" object, with a connectivity specification.
-    std::vector<std::pair<morph::vVector<unsigned int>, unsigned int>> connspec = {{{0},1},{{0},2}};
+    std::vector<std::pair<morph::vVector<unsigned int>, unsigned int>> connspec = {{{0},1},
+                                                                                   {{0},2},
+                                                                                   {{1},2},
+                                                                                   {{2},1}};
     float tau = 1000.0f;
     morph::nn::SpecialNet<float> snet({hg0.num(),hg0.num(),hg0.num()}, connspec, tau);
 
@@ -218,6 +221,10 @@ int main()
                                                                       dir_s_2);
     c++;
     c->setweight (weight_table2);
+    c++;
+    c->setweight_onetoone (-0.6);
+    c++;
+    c->setweight_onetoone (-0.6);
 
     // Load an image
     //std::string fn = "../sim/Lbig.png";
