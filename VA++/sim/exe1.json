@@ -1,0 +1,10 @@
+{
+    "gridsize": 0.5,
+    "hexhex": 0.01,
+
+    "gabor_gain_g": 1,
+    "gabor_lambda_s": 0.05,
+    "gabor_gain_s": 1,
+
+    "offset_gauss_distmult" : 2
+}

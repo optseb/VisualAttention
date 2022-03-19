@@ -11,6 +11,7 @@
 #include <morph/VisualDataModel.h>
 #include <morph/HexGridVisual.h>
 #include <morph/HexGrid.h>
+#include <morph/Config.h>
 #include "SpecialNet.h"
 #include "conn.h"
 #include "projections.h"
@@ -19,10 +20,16 @@ int main()
 {
     morph::Visual v(1600, 1000, "HexGrids with a neural net", {-0.8,-0.8}, {.05,.05,.05}, 2.0f, 0.0f);
 
+    morph::Config conf("../sim/exe1.json");
+    if (!conf.ready) {
+        std::cout << "Failed to read config.\n";
+        return -1;
+    }
+
     // at 0.8f, HexGrid with d=0.01f has about same number of elements as the 150x150 grids in the orig. model.
-    float gridsize = 0.5f;
+    float gridsize = conf.getFloat ("gridsize", 0.5f);
     // Hex to hex size
-    float hexhex = 0.01f;
+    float hexhex = conf.getFloat ("hexhex", 0.01f);
 
     // A single HexGrid is used for the positions of the neurons for all populations of this size.
     morph::HexGrid hg0(hexhex, gridsize * 3.0f, 0.0f, morph::HexDomainShape::Boundary);
@@ -38,7 +45,7 @@ int main()
         {{1},2},  {{2},1},  // layer 1 intra
         {{1},3},  {{1},4}, {{1},5}, {{1},6}, {{1},7},  {{2},4}, {{2},5}, {{2},6}, {{2},7},  {{2},8} // l1 to l2
     };
-    float tau = 1000.0f;
+    float tau = conf.getFloat ("tau", 1000.0f);
     morph::nn::SpecialNet<float> snet({n0, n0,n0, n0,n0,n0,n0,n0,n0 }, connspec, tau);
 
     // Locations for 3 visualisations based on the same grid
@@ -57,11 +64,11 @@ int main()
     hg_locs.push_back ({  (hg0.width()*1.8f), 2.5f*hg0.width(), 0.0f });
 
     // Create weight tables and set these into the network's connections
-    float gain_g = 1.0f;
-    float lambda_s = 0.05f;
-    float gain_s = 1.0f;
-    float dir_s_1 = 30.0f;
-    float dir_s_2 = 120.0f;
+    float gain_g = conf.getFloat ("gabor_gain_g", 1.0f);
+    float lambda_s = conf.getFloat ("gabor_lambda_s", 0.05f);
+    float gain_s = conf.getFloat ("gabor_gain_s", 1.0f);
+    float dir_s_1 = conf.getFloat ("gabor_dir1", 0.0f);
+    float dir_s_2 = conf.getFloat ("gabor_dir2", 90.0f);
 
     std::vector<morph::nn::conn<float>> weight_table;
 
@@ -78,7 +85,7 @@ int main()
     c->setweight (weight_table);
 
     // Layer 1 to Layer 1
-    float oneone_weight = -0.6f;
+    float oneone_weight = conf.getFloat ("oneone_weight", -0.6f);
     c++;
     c->setweight_onetoone (oneone_weight);
     c++;
@@ -92,7 +99,7 @@ int main()
     c->setweight (weight_table);
 
     // Choose the offset distance.
-    float os = hg0.getd() * 6.0f;
+    float os = hg0.getd() * conf.getFloat ("offset_gauss_distmult", 6.0f);
 
     // These four are conjunctions
     c++;
@@ -133,7 +140,7 @@ int main()
     c->setweight (weight_table);
 
     // Load an image
-    std::string fn = "../sim/Lbig.png";
+    std::string fn = "../sim/L.png";
     //std::string fn = "../sim/bike256.png";
     cv::Mat img = cv::imread (fn.c_str(), cv::IMREAD_GRAYSCALE);
     img.convertTo (img, CV_32F);
@@ -142,7 +149,8 @@ int main()
                        reinterpret_cast<float*>(img.data) + img.total() * img.channels());
     image_data /= 255.0f;
 
-    morph::Vector<float,2> image_scale = {0.6f, 0.6f}; // what's the scale of the image in HexGrid's units?
+    float img_sz = conf.getFloat ("image_scale", 0.3f);
+    morph::Vector<float,2> image_scale = {img_sz, img_sz}; // what's the scale of the image in HexGrid's units?
     morph::Vector<float,2> image_offset = {0.0f, 0.0f}; // offset in HexGrid's units (if 0, image is centered on HexGrid)
     morph::vVector<float> data0 = hg0.resampleImage (image_data, img.cols, image_scale, image_offset);
     snet.setinput (data0);
